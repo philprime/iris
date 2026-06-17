@@ -1,6 +1,6 @@
 # AGENTS.md
 
-**Iris** (`github.com/kula-app/iris`) — a Kubernetes controller providing a single public SMTP entrypoint for a cluster that routes/transforms inbound mail to in-cluster services. A replicated Postfix ingress terminates public SMTP; the controller compiles `Relay` CRs (`iris.kula.app/v1alpha1`) into Postfix routing maps and reconciles one transformer pod per relay that filters, transforms (canonical JSON + optional Jsonnet), and fans out to HTTP or downstream SMTP destinations. Design: `docs/superpowers/specs/2026-06-17-iris-design.md`. Replaces a legacy Postfix relay previously in the `infra` repo.
+**Iris** (`github.com/kula-app/iris`) — a Kubernetes controller providing a single public SMTP entrypoint for a cluster that routes/transforms inbound mail to in-cluster services. A replicated Postfix ingress terminates public SMTP; the controller compiles `Relay` CRs (`iris.kula.app/v1alpha1`) into Postfix routing maps and reconciles one transformer pod per relay that filters, transforms (canonical JSON + optional Jsonnet), and fans out to HTTP or downstream SMTP destinations. Docs: [`docs/`](docs/README.md) (architecture, kubernetes, relay, conventions, roadmap). Replaces a legacy Postfix relay previously in the `infra` repo.
 
 ## Ground rules
 
