@@ -1,0 +1,10 @@
+# Local scratch: reference clones copied in for analysis (never committed)
+/tmp/refs/
+/tmp/
+
+# Build output
+/dist/
+/bin/
+
+# Coverage
+*.out

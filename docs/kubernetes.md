@@ -112,9 +112,40 @@ One manager, two reconcilers, leader-elected (HA; only the leader reconciles):
 - controller-runtime **metrics**; leader election as a chart value (default on).
 - Watches: `Relay` (primary), owned `Deployment`/`Service`, and the Postfix ConfigMap.
 
+## Reconcile & status patterns
+
+Grounded in cloudnative-pg, source-controller, and cert-manager (see [references.md](references.md)):
+
+- **Idempotent child resources** — for each `Deployment`/`Service`/`ConfigMap` a `Relay` owns:
+  `Get` → `Create` (after `ctrl.SetControllerReference`) if absent, else compute the desired object
+  and `Patch` with `client.MergeFrom(original)`; skip the write when `reflect.DeepEqual` shows no
+  change. Verify ownership (`metav1.GetControllerOf`) before patching.
+- **Status via patch-on-defer + optimistic lock** — capture the object at the top of `Reconcile`;
+  set conditions with apimachinery `meta.SetStatusCondition`; in a deferred block patch status once
+  via `client.Status().Patch(ctx, obj, client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{}))`
+  wrapped in `retry.RetryOnConflict`; always set `observedGeneration`. This is the dependency-light
+  equivalent of flux's SerialPatcher/summarize — **no `fluxcd/pkg/runtime` dependency**.
+- **Conditions** — `Ready` summarizes the owned conditions (`Programmed`, `Conflict`, and a per-relay
+  `DeploymentAvailable`). Negative-polarity conditions (e.g. `Conflict`) are present only when abnormal.
+- **Finalizers** — `controllerutil.AddFinalizer` on first reconcile; on `DeletionTimestamp`, release
+  the relay's routes from the aggregate, then `controllerutil.RemoveFinalizer` (both via `MergeFrom`).
+- **Error classification** — terminal/config errors mark `Ready=False` with a stable reason and do
+  not requeue; transient errors return an error to requeue with backoff.
+
+## Webhook & manager wiring
+
+- The validating webhook is **served by the controller manager** (single binary) — not a separate
+  webhook binary + cainjector (cert-manager's split is for independent scaling; overkill here).
+  Webhook serving certificates are provisioned by **cert-manager** (a `Certificate` + CA injection)
+  or Helm-generated certs.
+- Manager: leader election on (`LeaseDuration` 15s / `RenewDeadline` 10s,
+  `LeaderElectionReleaseOnCancel: true`), metrics endpoint, health/readiness probes.
+
 ## RBAC
 
-- Controller: `Relay` (get/list/watch + status/finalizers), `Deployment`/`Service`/`ConfigMap`
+Generated from `//+kubebuilder:rbac` markers on the reconcilers (`make manifests`):
+
+- Controller: `Relay` (get/list/watch + `status`/`finalizers`), `Deployment`/`Service`/`ConfigMap`
   (full CRUD in managed namespaces), `Secret` (get/list/watch for referenced secrets), `Lease`
   (leader election), `Event` (emit).
 - Relay pods: **no Kubernetes API access**.

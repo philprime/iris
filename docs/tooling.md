@@ -7,7 +7,8 @@ for analysis, and `pre-commit` to enforce it all locally.
 ## Toolchain (go.mod `tool` directive)
 
 Tools are versioned as module dependencies and invoked with `go tool <name>` — no global installs,
-Renovate keeps them current:
+Renovate keeps them current (e.g. `controller-gen` pinned at a known-good version, currently the
+`v0.21.x` line):
 
 | Tool | Purpose |
 | --- | --- |
