@@ -10,6 +10,8 @@ kubebuilder conventions + kula's `cmd`/`internal` layout:
 ```
 iris/
 ├── PROJECT  Makefile  go.mod  AGENTS.md  CLAUDE.md
+├── Brewfile  dprint.json  .air.toml  .pre-commit-config.yaml  renovate.json
+├── .github/workflows/      # analyze, build, format, generate, test, publish
 ├── api/v1alpha1/            # Relay types + kubebuilder markers + zz_generated.deepcopy.go
 ├── cmd/
 │   ├── controller/{main,run}.go   # manager: reconcilers + webhook + leader election
@@ -50,11 +52,8 @@ iris/
 
 ## Testing
 
-- Table-driven tests with `t.Run`; `t.Parallel()` for isolated state.
-- Same-package unit tests; integration tests in `package x_test`.
-- Integration tests behind `//go:build integration` (`go test -tags=integration ./...`).
-- Controller tests use **envtest**; end-to-end uses **kind** under `test/e2e/`.
-- Integration tests carry a Gherkin-style header comment (Feature/Scenario/Given/When/Then).
+Table-driven tests, same-package unit tests, envtest for reconcilers, kind for e2e. Full
+guidance in [testing.md](testing.md).
 
 ## Commits & PRs
 

@@ -47,10 +47,22 @@ Public Internet ──:25/587/465──▶  [ Postfix Ingress ]   (N replicas, L
 
 ## Documentation map
 
+**Design**
+
 | Doc | Covers |
 | --- | --- |
 | [architecture.md](architecture.md) | Components, data flow, public exposure, key properties |
 | [kubernetes.md](kubernetes.md) | `Relay` CRD reference, controller/reconcilers, conflict resolution, status, RBAC, webhook, Helm chart |
 | [relay.md](relay.md) | Data plane: session pipeline, filters/scoring, transform, delivery contract, config format |
-| [conventions.md](conventions.md) | Repo layout, Go/kula conventions, testing, commits |
 | [roadmap.md](roadmap.md) | Open questions & future work |
+
+**Contributing**
+
+| Doc | Covers |
+| --- | --- |
+| [development.md](development.md) | Prerequisites, local setup, running with air/kind, debugging |
+| [tooling.md](tooling.md) | Makefile targets, codegen, linters, formatting, pre-commit, renovate |
+| [testing.md](testing.md) | Unit, envtest, kind e2e, conventions |
+| [ci.md](ci.md) | GitHub Actions workflows |
+| [distribution.md](distribution.md) | Images, Helm chart, versioning, release process |
+| [conventions.md](conventions.md) | Repo layout, Go/kula coding conventions, commits |
