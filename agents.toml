@@ -1,0 +1,9 @@
+version = 1
+agents = ["claude", "cursor", "codex"]
+
+[trust]
+github_orgs = ["philprime", "getsentry"]
+
+[[skills]]
+name = "dotagents"
+source = "getsentry/dotagents"
