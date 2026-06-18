@@ -4,14 +4,14 @@ GitHub Actions workflows mirror the kula controller convention (one concern per 
 run on **push to `main`**, **pull requests**, and **`workflow_dispatch`**, each with a
 concurrency group that cancels in-progress runs for the same ref.
 
-| Workflow | Runs | Fails when |
-| --- | --- | --- |
-| `analyze.yml` | `make analyze` (`go vet`, `staticcheck`, `govulncheck`) | Static-analysis or vuln findings |
-| `build.yml` | `make build` (all binaries) | Compilation breaks |
-| `format.yml` | `make format`, then checks `git status --porcelain` | Formatting not committed |
-| `generate.yml` | `make generate`, then checks `git status --porcelain` | Generated code/CRDs not committed |
-| `test.yml` | `make test` (unit + envtest) and `make test-e2e` (kind) | Any test fails |
-| `publish.yml` | Build + push the controller / relay / postfix images | Build/push error (push skipped on PRs) |
+| Workflow       | Runs                                                    | Fails when                             |
+| -------------- | ------------------------------------------------------- | -------------------------------------- |
+| `analyze.yml`  | `make analyze` (`go vet`, `staticcheck`, `govulncheck`) | Static-analysis or vuln findings       |
+| `build.yml`    | `make build` (all binaries)                             | Compilation breaks                     |
+| `format.yml`   | `make format`, then checks `git status --porcelain`     | Formatting not committed               |
+| `generate.yml` | `make generate`, then checks `git status --porcelain`   | Generated code/CRDs not committed      |
+| `test.yml`     | `make test` (unit + envtest) and `make test-e2e` (kind) | Any test fails                         |
+| `publish.yml`  | Build + push the controller / relay / postfix images    | Build/push error (push skipped on PRs) |
 
 Each Go workflow uses `actions/setup-go` with the version from `go.mod` and module caching.
 

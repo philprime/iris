@@ -5,11 +5,11 @@ Iris exposes the three standard pillars on every binary: **health/readiness prob
 because the control plane is a controller-runtime manager while the data plane is plain
 `net/http` + `go-smtp`:
 
-| Component | Health | Metrics | Errors |
-| --- | --- | --- | --- |
-| **controller** | controller-runtime manager probes (`AddHealthzCheck`/`AddReadyzCheck`) | controller-runtime metrics server (`metrics.Registry`) | Sentry + slog |
-| **relay** | [`kula-app/go-health`](https://github.com/kula-app/go-health) (`/livez` `/readyz` `/healthz`) | `promhttp` on the admin server | Sentry + slog |
-| **reloader** | `go-health` (`/livez` `/readyz`) | `promhttp` on the admin server | Sentry + slog |
+| Component      | Health                                                                                        | Metrics                                                | Errors        |
+| -------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------- |
+| **controller** | controller-runtime manager probes (`AddHealthzCheck`/`AddReadyzCheck`)                        | controller-runtime metrics server (`metrics.Registry`) | Sentry + slog |
+| **relay**      | [`kula-app/go-health`](https://github.com/kula-app/go-health) (`/livez` `/readyz` `/healthz`) | `promhttp` on the admin server                         | Sentry + slog |
+| **reloader**   | `go-health` (`/livez` `/readyz`)                                                              | `promhttp` on the admin server                         | Sentry + slog |
 
 This split is deliberate: the controller already gets a metrics server and probe endpoints from
 the manager, so layering `go-health` on top would be redundant. The data-plane binaries have no
@@ -21,13 +21,13 @@ manager, so they use `go-health` — the same library every other kula HTTP serv
 Each binary serves its observability surface on fixed, separately-bound ports (kubebuilder
 defaults for the controller; a single admin server for the data plane), configurable via env:
 
-| Binary | Port | Serves | Env |
-| --- | --- | --- | --- |
-| controller | `:8080` | `/metrics` | `IRIS_CONTROLLER_METRICS_ADDR` |
-| controller | `:8081` | `/healthz`, `/readyz` | `IRIS_CONTROLLER_HEALTH_ADDR` |
-| controller | `:9443` | validating webhook | `IRIS_CONTROLLER_WEBHOOK_ADDR` |
-| relay | `:8080` | `/metrics`, `/livez`, `/readyz`, `/healthz` | `IRIS_RELAY_ADMIN_ADDR` |
-| reloader | `:8080` | `/metrics`, `/livez`, `/readyz` | `IRIS_RELOADER_ADMIN_ADDR` |
+| Binary     | Port    | Serves                                      | Env                            |
+| ---------- | ------- | ------------------------------------------- | ------------------------------ |
+| controller | `:8080` | `/metrics`                                  | `IRIS_CONTROLLER_METRICS_ADDR` |
+| controller | `:8081` | `/healthz`, `/readyz`                       | `IRIS_CONTROLLER_HEALTH_ADDR`  |
+| controller | `:9443` | validating webhook                          | `IRIS_CONTROLLER_WEBHOOK_ADDR` |
+| relay      | `:8080` | `/metrics`, `/livez`, `/readyz`, `/healthz` | `IRIS_RELAY_ADMIN_ADDR`        |
+| reloader   | `:8080` | `/metrics`, `/livez`, `/readyz`             | `IRIS_RELOADER_ADMIN_ADDR`     |
 
 The relay's SMTP listener (25, from Postfix) is separate from its admin HTTP server; the admin
 server hosts only probes + metrics and needs **no Kubernetes API access** (consistent with
@@ -110,38 +110,38 @@ func init() { metrics.Registry.MustRegister(relaysGauge, routeConflictsGauge, po
 controller-runtime already provides the reconcile/workqueue/client/leader-election families for
 free — **do not reimplement them**:
 
-| Metric (provided) | Use |
-| --- | --- |
-| `controller_runtime_reconcile_total{controller,result}` | reconcile throughput + error rate |
-| `controller_runtime_reconcile_time_seconds{controller}` | reconcile latency |
-| `controller_runtime_reconcile_errors_total{controller}` | terminal error rate |
-| `workqueue_depth` / `_adds_total` / `_retries_total{name}` | backlog & churn |
-| `leader_election_master_status` | which replica is leading |
-| `rest_client_requests_total{code,method}` | API-server pressure |
+| Metric (provided)                                          | Use                               |
+| ---------------------------------------------------------- | --------------------------------- |
+| `controller_runtime_reconcile_total{controller,result}`    | reconcile throughput + error rate |
+| `controller_runtime_reconcile_time_seconds{controller}`    | reconcile latency                 |
+| `controller_runtime_reconcile_errors_total{controller}`    | terminal error rate               |
+| `workqueue_depth` / `_adds_total` / `_retries_total{name}` | backlog & churn                   |
+| `leader_election_master_status`                            | which replica is leading          |
+| `rest_client_requests_total{code,method}`                  | API-server pressure               |
 
 Iris adds only domain metrics the runtime can't know about (low cardinality — aggregate, not
 per-relay; per-relay state belongs in CR conditions + kube-state-metrics):
 
-| Metric (iris) | Type | Labels | Meaning |
-| --- | --- | --- | --- |
-| `iris_relays` | Gauge | `phase` | Relays by status (`ready`/`conflict`/`programming`) |
-| `iris_route_conflicts` | Gauge | — | Routes currently losing first-writer-wins |
+| Metric (iris)                       | Type    | Labels   | Meaning                                                          |
+| ----------------------------------- | ------- | -------- | ---------------------------------------------------------------- |
+| `iris_relays`                       | Gauge   | `phase`  | Relays by status (`ready`/`conflict`/`programming`)              |
+| `iris_route_conflicts`              | Gauge   | —        | Routes currently losing first-writer-wins                        |
 | `iris_postfix_config_renders_total` | Counter | `result` | Postfix-map render→write attempts (`written`/`nochange`/`error`) |
-| `iris_postfix_config_generation` | Gauge | — | Generation of the last written Postfix ConfigMap |
+| `iris_postfix_config_generation`    | Gauge   | —        | Generation of the last written Postfix ConfigMap                 |
 
 ### Relay
 
 Default Prometheus registry, served via `promhttp.Handler()` on the admin server:
 
-| Metric | Type | Labels | Meaning |
-| --- | --- | --- | --- |
-| `iris_relay_sessions_total` | Counter | `result` | SMTP sessions (`accepted`/`rejected`) |
-| `iris_relay_messages_total` | Counter | `result` | Messages by outcome (`delivered`/`rejected_size`/`rejected_sender`/`rejected_dkim`/`rejected_score`) |
-| `iris_relay_filter_score` | Histogram | — | Heuristic score distribution (vs `minScore`) |
-| `iris_relay_message_bytes` | Histogram | — | Accepted message size |
-| `iris_relay_deliveries_total` | Counter | `destination,type,result` | Per-destination fan-out (`type`=`http`/`smtp`; `result`=`success`/`failure`) |
-| `iris_relay_delivery_duration_seconds` | Histogram | `destination,type` | Per-destination delivery latency |
-| `iris_relay_deliveries_in_flight` | Gauge | — | Concurrent in-flight deliveries |
+| Metric                                 | Type      | Labels                    | Meaning                                                                                              |
+| -------------------------------------- | --------- | ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `iris_relay_sessions_total`            | Counter   | `result`                  | SMTP sessions (`accepted`/`rejected`)                                                                |
+| `iris_relay_messages_total`            | Counter   | `result`                  | Messages by outcome (`delivered`/`rejected_size`/`rejected_sender`/`rejected_dkim`/`rejected_score`) |
+| `iris_relay_filter_score`              | Histogram | —                         | Heuristic score distribution (vs `minScore`)                                                         |
+| `iris_relay_message_bytes`             | Histogram | —                         | Accepted message size                                                                                |
+| `iris_relay_deliveries_total`          | Counter   | `destination,type,result` | Per-destination fan-out (`type`=`http`/`smtp`; `result`=`success`/`failure`)                         |
+| `iris_relay_delivery_duration_seconds` | Histogram | `destination,type`        | Per-destination delivery latency                                                                     |
+| `iris_relay_deliveries_in_flight`      | Gauge     | —                         | Concurrent in-flight deliveries                                                                      |
 
 `destination` is the operator-chosen `destinations[].name` (bounded by the CR), so its cardinality
 is safe. The `result`/`type` split lets you alert on `required`-destination failure rate, which is
@@ -149,11 +149,11 @@ what drives the SMTP 4xx → Postfix-retry path.
 
 ### Reloader
 
-| Metric | Type | Labels | Meaning |
-| --- | --- | --- | --- |
-| `iris_postfix_reloads_total` | Counter | `result` | `postmap`+`reload` attempts (`success`/`failure`) |
-| `iris_postfix_reload_duration_seconds` | Histogram | — | Reload latency |
-| `iris_postfix_config_last_reload_timestamp_seconds` | Gauge | — | Unix time of the last successful reload |
+| Metric                                              | Type      | Labels   | Meaning                                           |
+| --------------------------------------------------- | --------- | -------- | ------------------------------------------------- |
+| `iris_postfix_reloads_total`                        | Counter   | `result` | `postmap`+`reload` attempts (`success`/`failure`) |
+| `iris_postfix_reload_duration_seconds`              | Histogram | —        | Reload latency                                    |
+| `iris_postfix_config_last_reload_timestamp_seconds` | Gauge     | —        | Unix time of the last successful reload           |
 
 > **Postfix MTA metrics** (queue depth, bounce/defer rates) are **not** in v1 — `boky/postfix`
 > exposes no Prometheus endpoint. A `postfix_exporter` sidecar is a [roadmap](roadmap.md) item.
@@ -217,7 +217,7 @@ logs flow through the same pipeline.
 
 Capture **unexpected** failures, never routine protocol outcomes:
 
-- **Controller** — `sentry.CaptureException(err)` on a *terminal* reconcile error (the same place
+- **Controller** — `sentry.CaptureException(err)` on a _terminal_ reconcile error (the same place
   `Ready=False` is set in the patch-on-defer block; see
   [kubernetes.md](kubernetes.md#reconcile--status-patterns)). Transient requeues are normal flow —
   **do not** capture them. Tag the scope with the `Relay` namespace/name.
@@ -240,17 +240,17 @@ exact image, matching the `version`/`commit`/`date` ldflags already used for the
 
 Env vars (per binary, `IRIS_SENTRY_*`), mirroring `asm-relay`'s `ConfigSentry`:
 
-| Env | Default | Meaning |
-| --- | --- | --- |
-| `IRIS_SENTRY_ENABLED` | `false` | Master switch |
-| `IRIS_SENTRY_DSN` | — | Project DSN |
-| `IRIS_SENTRY_ENVIRONMENT` | `local` | `production` / `staging` / `local` |
-| `IRIS_SENTRY_RELEASE` | ldflags value | `iris@<version>:<git-sha>` |
-| `IRIS_SENTRY_DEBUG` | `false` | SDK debug logging |
-| `IRIS_SENTRY_ATTACH_STACKTRACE` | `true` | Attach stacks to events |
-| `IRIS_SENTRY_SAMPLE_RATE` | `1.0` | Error event sample rate |
-| `IRIS_SENTRY_ENABLE_TRACING` | `false` | Performance tracing |
-| `IRIS_SENTRY_TRACES_SAMPLE_RATE` | `0.0` | Trace sample rate (raise per env) |
+| Env                              | Default       | Meaning                            |
+| -------------------------------- | ------------- | ---------------------------------- |
+| `IRIS_SENTRY_ENABLED`            | `false`       | Master switch                      |
+| `IRIS_SENTRY_DSN`                | —             | Project DSN                        |
+| `IRIS_SENTRY_ENVIRONMENT`        | `local`       | `production` / `staging` / `local` |
+| `IRIS_SENTRY_RELEASE`            | ldflags value | `iris@<version>:<git-sha>`         |
+| `IRIS_SENTRY_DEBUG`              | `false`       | SDK debug logging                  |
+| `IRIS_SENTRY_ATTACH_STACKTRACE`  | `true`        | Attach stacks to events            |
+| `IRIS_SENTRY_SAMPLE_RATE`        | `1.0`         | Error event sample rate            |
+| `IRIS_SENTRY_ENABLE_TRACING`     | `false`       | Performance tracing                |
+| `IRIS_SENTRY_TRACES_SAMPLE_RATE` | `0.0`         | Trace sample rate (raise per env)  |
 
 Sentry settings surface as Helm values (chart-wide, with optional per-component override) and are
 injected as env on each Deployment.
@@ -276,11 +276,11 @@ fields only — never `fmt.Sprintf` in messages (see [conventions.md](convention
 
 ## Dependencies introduced
 
-| Module | Purpose |
-| --- | --- |
-| `github.com/kula-app/go-health` | Data-plane `/livez` `/readyz` `/healthz` (kula library) |
-| `github.com/prometheus/client_golang` | Metrics + `promhttp` (data plane) |
-| `github.com/getsentry/sentry-go` + `/slog` | Error/trace reporting + slog bridge |
-| `sigs.k8s.io/controller-runtime/pkg/metrics` | Controller metrics registry (already transitive) |
+| Module                                       | Purpose                                                 |
+| -------------------------------------------- | ------------------------------------------------------- |
+| `github.com/kula-app/go-health`              | Data-plane `/livez` `/readyz` `/healthz` (kula library) |
+| `github.com/prometheus/client_golang`        | Metrics + `promhttp` (data plane)                       |
+| `github.com/getsentry/sentry-go` + `/slog`   | Error/trace reporting + slog bridge                     |
+| `sigs.k8s.io/controller-runtime/pkg/metrics` | Controller metrics registry (already transitive)        |
 
 See [references.md](references.md) for the projects these patterns were drawn from.

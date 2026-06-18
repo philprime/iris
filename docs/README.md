@@ -49,22 +49,22 @@ Public Internet ──:25/587/465──▶  [ Postfix Ingress ]   (N replicas, L
 
 **Design**
 
-| Doc | Covers |
-| --- | --- |
-| [architecture.md](architecture.md) | Components, data flow, public exposure, key properties |
-| [kubernetes.md](kubernetes.md) | `Relay` CRD reference, controller/reconcilers, conflict resolution, status, RBAC, webhook, Helm chart |
-| [relay.md](relay.md) | Data plane: session pipeline, filters/scoring, transform, delivery contract, config format |
-| [observability.md](observability.md) | Health/readiness probes, Prometheus metrics, Sentry error reporting, logging |
-| [references.md](references.md) | Controllers studied for best practices + adopt/skip decisions |
-| [roadmap.md](roadmap.md) | Open questions & future work |
+| Doc                                  | Covers                                                                                                |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| [architecture.md](architecture.md)   | Components, data flow, public exposure, key properties                                                |
+| [kubernetes.md](kubernetes.md)       | `Relay` CRD reference, controller/reconcilers, conflict resolution, status, RBAC, webhook, Helm chart |
+| [relay.md](relay.md)                 | Data plane: session pipeline, filters/scoring, transform, delivery contract, config format            |
+| [observability.md](observability.md) | Health/readiness probes, Prometheus metrics, Sentry error reporting, logging                          |
+| [references.md](references.md)       | Controllers studied for best practices + adopt/skip decisions                                         |
+| [roadmap.md](roadmap.md)             | Open questions & future work                                                                          |
 
 **Contributing**
 
-| Doc | Covers |
-| --- | --- |
-| [development.md](development.md) | Prerequisites, local setup, running with air/kind, debugging |
-| [tooling.md](tooling.md) | Makefile targets, codegen, linters, formatting, pre-commit, renovate |
-| [testing.md](testing.md) | Unit, envtest, kind e2e, conventions |
-| [ci.md](ci.md) | GitHub Actions workflows |
-| [distribution.md](distribution.md) | Images, Helm chart, versioning, release process |
-| [conventions.md](conventions.md) | Repo layout, Go/kula coding conventions, commits |
+| Doc                                | Covers                                                               |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| [development.md](development.md)   | Prerequisites, local setup, running with air/kind, debugging         |
+| [tooling.md](tooling.md)           | Makefile targets, codegen, linters, formatting, pre-commit, renovate |
+| [testing.md](testing.md)           | Unit, envtest, kind e2e, conventions                                 |
+| [ci.md](ci.md)                     | GitHub Actions workflows                                             |
+| [distribution.md](distribution.md) | Images, Helm chart, versioning, release process                      |
+| [conventions.md](conventions.md)   | Repo layout, Go/kula coding conventions, commits                     |

@@ -7,12 +7,12 @@ GitHub App for automated cross-repo PRs).
 
 ## Artifacts
 
-| Artifact | Registry / location | Built from |
-| --- | --- | --- |
-| `controller` image | `ghcr.io/kula-app/iris/controller` | `images/controller/Dockerfile` (distroless) |
-| `relay` image | `ghcr.io/kula-app/iris/relay` | `images/relay/Dockerfile` (distroless) |
-| `postfix` image | `ghcr.io/kula-app/iris/postfix` | `images/postfix/Dockerfile` (`FROM boky/postfix` + baked `reloader`) |
-| Helm chart | OCI: `ghcr.io/kula-app/charts/iris` | `chart/iris/` |
+| Artifact           | Registry / location                 | Built from                                                           |
+| ------------------ | ----------------------------------- | -------------------------------------------------------------------- |
+| `controller` image | `ghcr.io/kula-app/iris/controller`  | `images/controller/Dockerfile` (distroless)                          |
+| `relay` image      | `ghcr.io/kula-app/iris/relay`       | `images/relay/Dockerfile` (distroless)                               |
+| `postfix` image    | `ghcr.io/kula-app/iris/postfix`     | `images/postfix/Dockerfile` (`FROM boky/postfix` + baked `reloader`) |
+| Helm chart         | OCI: `ghcr.io/kula-app/charts/iris` | `chart/iris/`                                                        |
 
 ## Image build
 

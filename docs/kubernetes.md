@@ -18,31 +18,37 @@ metadata:
 spec:
   # 1. WHAT MAIL THIS RELAY CLAIMS → compiled into Postfix transport + relay_recipient_maps
   routes:
-    - address: invites@invite.example.com   # exact address (wins over domain)
-    - domain:  invite.example.com           # any local-part on the domain
+    - address: invites@invite.example.com # exact address (wins over domain)
+    - domain: invite.example.com # any local-part on the domain
 
   # 2. INBOUND FILTERING → relay rejects with SMTP 5xx before transforming (optional)
   filters:
-    maxMessageBytes: 26214400               # 25 MiB
+    maxMessageBytes: 26214400 # 25 MiB
     allowedSenderDomains: ["email.apple.com"]
-    requireDKIM: ["email.apple.com"]        # DKIM d= must match one of these
-    minScore: 2                             # accept if score >= minScore
-    scoreSignals: [fromDomain, messageIdDomain, dkimDomain, authResults, bodyLinkDomain]
+    requireDKIM: ["email.apple.com"] # DKIM d= must match one of these
+    minScore: 2 # accept if score >= minScore
+    scoreSignals: [
+      fromDomain,
+      messageIdDomain,
+      dkimDomain,
+      authResults,
+      bodyLinkDomain,
+    ]
 
   # 3. DELIVERY → fan-out to ALL destinations (broadcast)
-  idempotency: messageId                    # messageId (default) | sha256 — key sent to every destination
+  idempotency: messageId # messageId (default) | sha256 — key sent to every destination
   destinations:
     - name: webhook
-      required: true                        # failure → SMTP 4xx → Postfix retries the message
+      required: true # failure → SMTP 4xx → Postfix retries the message
       http:
         url: https://service.internal/inbound
-        method: POST                        # default POST
-        payloadFormat: json                 # json (canonical envelope, default) | raw (message/rfc822)
-        authSecretRef: { name: webhook, key: token }   # → Authorization header
-        transform:                          # OPTIONAL Jsonnet remap
+        method: POST # default POST
+        payloadFormat: json # json (canonical envelope, default) | raw (message/rfc822)
+        authSecretRef: { name: webhook, key: token } # → Authorization header
+        transform: # OPTIONAL Jsonnet remap
           jsonnetConfigMapRef: { name: mapping, key: map.jsonnet }
     - name: archive
-      required: false                       # best-effort; failure logged + metered, no upstream retry
+      required: false # best-effort; failure logged + metered, no upstream retry
       smtp:
         host: archive.internal
         port: 1025
@@ -53,14 +59,18 @@ spec:
   deployment:
     replicas: 1
     resources:
-      requests: { cpu: 50m,  memory: 64Mi }
-      limits:   { cpu: 250m, memory: 128Mi }
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 250m, memory: 128Mi }
 
 status:
-  conditions:                               # Kstatus-style
-    - { type: Ready,      status: "True", observedGeneration: 4, ... }
-    - { type: Programmed, status: "True", ... }   # compiled into the Postfix ingress
-    - { type: Conflict,   status: "False", ... }
+  conditions: # Kstatus-style
+    - { type: Ready, status: "True", observedGeneration: 4, ... }
+    - {
+        type: Programmed,
+        status: "True",
+        ...,
+      } # compiled into the Postfix ingress
+    - { type: Conflict, status: "False", ... }
   observedGeneration: 4
   claimedRoutes: ["invites@invite.example.com", "@invite.example.com"]
   serviceRef: { name: relay-appstore-invites }

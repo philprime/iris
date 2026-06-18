@@ -9,14 +9,14 @@ and `kind` provides a throwaway cluster.
 
 ## Prerequisites
 
-| Tool | Purpose | Install |
-| --- | --- | --- |
-| Go 1.26 | Toolchain (version pinned in `go.mod`) | `brew install go` |
-| Docker | Build images, run `kind` | Docker Desktop / colima |
-| kind | Local Kubernetes for e2e | `make init` (Brewfile) |
-| kubectl | Talk to the cluster | `make init` |
-| Helm | Render/install the chart | `make init` |
-| dprint | Non-Go formatting | `make init` |
+| Tool    | Purpose                                | Install                 |
+| ------- | -------------------------------------- | ----------------------- |
+| Go 1.26 | Toolchain (version pinned in `go.mod`) | `brew install go`       |
+| Docker  | Build images, run `kind`               | Docker Desktop / colima |
+| kind    | Local Kubernetes for e2e               | `make init` (Brewfile)  |
+| kubectl | Talk to the cluster                    | `make init`             |
+| Helm    | Render/install the chart               | `make init`             |
+| dprint  | Non-Go formatting                      | `make init`             |
 
 Go-based tools (`controller-gen`, `setup-envtest`, `air`, `delve`, `staticcheck`, `govulncheck`)
 are declared in the `go.mod` `tool` directive and run via `go tool` — no manual install.

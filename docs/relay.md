@@ -54,9 +54,14 @@ documented, versioned schema:
   "idempotencyKey": "<message-id-or-sha256>",
   "envelope": { "mailFrom": "...", "rcptTo": ["..."] },
   "headers": { "Subject": "...", "From": "...", "...": "..." },
-  "from": "...", "to": ["..."], "subject": "...",
-  "text": "...", "html": "...",
-  "attachments": [ { "filename": "...", "contentType": "...", "bytesBase64": "..." } ],
+  "from": "...",
+  "to": ["..."],
+  "subject": "...",
+  "text": "...",
+  "html": "...",
+  "attachments": [
+    { "filename": "...", "contentType": "...", "bytesBase64": "..." }
+  ],
   "raw": "<optional full RFC822, base64>"
 }
 ```
@@ -78,7 +83,7 @@ message again. Mitigations (standard for any queue-backed email system):
    envelope) so downstreams dedup.
 2. **`required: false`** marks best-effort destinations whose failure does not trigger a retry.
 
-This contract — *at-least-once, idempotency-key-deduped, `required` gates retry* — is part of the
+This contract — _at-least-once, idempotency-key-deduped, `required` gates retry_ — is part of the
 public API.
 
 ## Config file format

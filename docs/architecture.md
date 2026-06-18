@@ -56,7 +56,7 @@ Modeled as an exposure `mode`, defaulting to the portable option:
   Postfix. The cloud LB gives a stable public IP for MX records. Port 25 is raw TCP; this avoids
   HTTP-first ingress controllers entirely.
 - **`traefik`** (documented, later phase) — emit `IngressRouteTCP`. Requires a dedicated Traefik
-  **entrypoint** on port 25 in Traefik's *static* config (cannot be injected by a CRD), which is
+  **entrypoint** on port 25 in Traefik's _static_ config (cannot be injected by a CRD), which is
   the known friction point.
 - **`none`** — operators wire their own front Service.
 
