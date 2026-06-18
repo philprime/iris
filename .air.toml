@@ -1,0 +1,27 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# Rebuild the controller binary into tmp/ on every change.
+cmd = "go build -o ./tmp/controller ./cmd/controller"
+bin = "./tmp/controller"
+
+# Graceful shutdown configuration
+send_interrupt = true
+kill_delay = "10s"
+
+# Watch configuration
+include_ext = ["go"]
+exclude_dir = [".git", ".github", ".vscode", "bin", "dist", "tmp", "chart", "config", "docs", "test"]
+exclude_regex = ["_test.go", "zz_generated.*\\.go"]
+exclude_unchanged = true
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true
+
+[screen]
+clear_on_rebuild = true
+keep_scroll = true

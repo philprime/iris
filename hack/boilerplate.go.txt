@@ -1,0 +1,7 @@
+/*
+Copyright 2026 kula app GmbH
+
+Licensed under the Functional Source License, Version 1.1, MIT Future License
+(FSL-1.1-MIT). See the LICENSE.md file in the repository root for the full
+terms. SPDX-License-Identifier: FSL-1.1-MIT
+*/

@@ -1,0 +1,9 @@
+processor:
+  # Fields/types matching these regexes are omitted from the generated reference.
+  ignoreFields:
+    - "status$"
+    - "TypeMeta$"
+
+render:
+  # Kubernetes version used to link core API types (e.g. ObjectMeta).
+  kubernetesVersion: "1.31"
