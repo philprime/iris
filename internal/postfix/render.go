@@ -12,7 +12,10 @@ package postfix
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/philprime/iris/api/v1alpha1"
 )
@@ -32,8 +35,22 @@ type Maps struct {
 	RelayRecipients string
 }
 
-// Render compiles the Postfix maps from the given relays.
-func Render(relays []v1alpha1.Relay, opts Options) (Maps, error) {
+// Conflict reports a route key that a relay could not claim because an
+// earlier relay already owns it. The caller uses this to set Conflict=True on
+// the losing relay.
+type Conflict struct {
+	// Relay is the losing relay (the later claimant).
+	Relay types.NamespacedName
+	// Route is the route key (exact address or domain) that collided.
+	Route string
+	// WonBy is the relay that owns the route key.
+	WonBy types.NamespacedName
+}
+
+// Render compiles the Postfix maps from the given relays. Route keys are
+// unique cluster-wide: on a collision the earliest relay by (creationTimestamp,
+// namespace, name) wins and the later claimants are returned as conflicts.
+func Render(relays []v1alpha1.Relay, opts Options) (Maps, []Conflict, error) {
 	clusterDomain := opts.ClusterDomain
 	if clusterDomain == "" {
 		clusterDomain = "cluster.local"
@@ -43,37 +60,102 @@ func Render(relays []v1alpha1.Relay, opts Options) (Maps, error) {
 		port = 25
 	}
 
-	var transport, recipients, relayDomains strings.Builder
-	seenDomain := map[string]bool{}
-	addDomain := func(domain string) {
-		if domain == "" || seenDomain[domain] {
-			return
-		}
-		seenDomain[domain] = true
-		fmt.Fprintf(&relayDomains, "%s\n", domain)
-	}
+	// Resolve route ownership in first-writer-wins order so a collision is
+	// decided deterministically and independently of input order.
+	ordered := make([]v1alpha1.Relay, len(relays))
+	copy(ordered, relays)
+	sort.SliceStable(ordered, func(i, j int) bool { return lessRelay(ordered[i], ordered[j]) })
 
-	for _, relay := range relays {
+	// Collect the map lines keyed by their Postfix lookup key. Sorting happens
+	// at render time so the output is byte-stable regardless of input order.
+	transport := map[string]string{}
+	recipients := map[string]string{}
+	domains := map[string]struct{}{}
+	owner := map[string]types.NamespacedName{}
+	var conflicts []Conflict
+
+	for _, relay := range ordered {
+		nn := types.NamespacedName{Namespace: relay.Namespace, Name: relay.Name}
 		target := fmt.Sprintf("smtp:[relay-%s.%s.svc.%s]:%d", relay.Name, relay.Namespace, clusterDomain, port)
 		for _, route := range relay.Spec.Routes {
-			switch {
-			case route.Address != "":
-				fmt.Fprintf(&transport, "%s %s\n", route.Address, target)
-				fmt.Fprintf(&recipients, "%s OK\n", route.Address)
-				if at := strings.IndexByte(route.Address, '@'); at >= 0 {
-					addDomain(route.Address[at+1:])
-				}
-			case route.Domain != "":
-				fmt.Fprintf(&transport, "%s %s\n", route.Domain, target)
-				fmt.Fprintf(&recipients, "@%s OK\n", route.Domain)
-				addDomain(route.Domain)
+			key, recipient, domain := routeKeys(route)
+			if key == "" {
+				continue
 			}
+			if won, claimed := owner[key]; claimed {
+				conflicts = append(conflicts, Conflict{Relay: nn, Route: key, WonBy: won})
+				continue
+			}
+			owner[key] = nn
+			transport[key] = target
+			recipients[recipient] = "OK"
+			domains[domain] = struct{}{}
 		}
 	}
 
 	return Maps{
-		Transport:       transport.String(),
-		RelayDomains:    relayDomains.String(),
-		RelayRecipients: recipients.String(),
-	}, nil
+		Transport:       renderPairs(transport),
+		RelayRecipients: renderPairs(recipients),
+		RelayDomains:    renderKeys(domains),
+	}, conflicts, nil
+}
+
+// routeKeys returns the conflict/transport key, the relay_recipient_maps key,
+// and the relay domain for a route. An exact address and a whole-domain route
+// occupy different key spaces (an address always contains '@'), so they never
+// collide with each other.
+func routeKeys(route v1alpha1.Route) (key, recipient, domain string) {
+	switch {
+	case route.Address != "":
+		domain = route.Address
+		if at := strings.IndexByte(route.Address, '@'); at >= 0 {
+			domain = route.Address[at+1:]
+		}
+		return route.Address, route.Address, domain
+	case route.Domain != "":
+		return route.Domain, "@" + route.Domain, route.Domain
+	default:
+		return "", "", ""
+	}
+}
+
+// lessRelay orders relays by creationTimestamp, then namespace, then name, so
+// the earliest claimant wins a contested route key.
+func lessRelay(a, b v1alpha1.Relay) bool {
+	at, bt := a.CreationTimestamp.Time, b.CreationTimestamp.Time
+	if !at.Equal(bt) {
+		return at.Before(bt)
+	}
+	if a.Namespace != b.Namespace {
+		return a.Namespace < b.Namespace
+	}
+	return a.Name < b.Name
+}
+
+// renderPairs writes "key value" lines sorted by key.
+func renderPairs(m map[string]string) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s %s\n", k, m[k])
+	}
+	return b.String()
+}
+
+// renderKeys writes sorted, deduplicated keys one per line.
+func renderKeys(m map[string]struct{}) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s\n", k)
+	}
+	return b.String()
 }
