@@ -13,8 +13,7 @@ because the control plane is a controller-runtime manager while the data plane i
 
 This split is deliberate: the controller already gets a metrics server and probe endpoints from
 the manager, so layering `go-health` on top would be redundant. The data-plane binaries have no
-manager, so they use `go-health` — the same library every other kula HTTP service uses
-(`asm-relay`, `bifrost`).
+manager, so they use `go-health` — the same library every other philprime HTTP service uses.
 
 ## Listen addresses
 
@@ -88,7 +87,7 @@ exists.
 
 ## Metrics
 
-Naming follows the kula convention (`asm-relay`): an `iris_` prefix, declared as package-level
+Naming follows the philprime convention (`asm-relay`): an `iris_` prefix, declared as package-level
 collectors in an `internal/metrics` package and registered once in `init()`. Counters end in
 `_total`, durations in `_seconds` (histograms with `prometheus.DefBuckets` unless a domain range
 fits better). Keep label cardinality bounded — never label by message-id, recipient, or sender.
@@ -169,7 +168,7 @@ changes.
 ## Error reporting (Sentry)
 
 Sentry is the in-app error/trace channel, wired identically across all three binaries using the
-established kula pattern (`bifrost`, `asm-relay`): `github.com/getsentry/sentry-go` +
+established philprime pattern (`bifrost`, `asm-relay`): `github.com/getsentry/sentry-go` +
 `github.com/getsentry/sentry-go/slog`. It is **opt-in** (`IRIS_SENTRY_ENABLED=false` by default) so
 local/dev and air-gapped installs run clean. v1 posture is **errors + logs only, tracing off**
 (`IRIS_SENTRY_ENABLE_TRACING=false`, `IRIS_SENTRY_TRACES_SAMPLE_RATE=0.0`); operators opt into
@@ -207,7 +206,7 @@ logger = slog.New(logHandler)
 defer sentry.Flush(2 * time.Second)
 ```
 
-The `MultiHandler` (copied from the kula house `internal/logging`) sends every record to both the
+The `MultiHandler` (copied from the philprime house `internal/logging`) sends every record to both the
 terminal handler and the Sentry slog handler, so developers keep local visibility while production
 captures issues. For the **controller**, this slog logger is bridged into controller-runtime's
 `logr` via `logr.FromSlogHandler(...)` and set with `ctrl.SetLogger`, so manager and reconciler
@@ -231,7 +230,7 @@ returns `0.0` for probe/metrics spans so health traffic doesn't drown the trace 
 
 ### Release identifier
 
-`Release` uses the kula unified format **`iris@<version>:<git-sha>`**, injected at build time via
+`Release` uses the philprime unified format **`iris@<version>:<git-sha>`**, injected at build time via
 `-ldflags "-X main.sentryRelease=iris@${VERSION}:${GIT_SHA}"` and defaulted through
 `IRIS_SENTRY_RELEASE` (see [distribution.md](distribution.md)). This ties Sentry issues back to the
 exact image, matching the `version`/`commit`/`date` ldflags already used for the binaries.
@@ -276,11 +275,11 @@ fields only — never `fmt.Sprintf` in messages (see [conventions.md](convention
 
 ## Dependencies introduced
 
-| Module                                       | Purpose                                                 |
-| -------------------------------------------- | ------------------------------------------------------- |
-| `github.com/kula-app/go-health`              | Data-plane `/livez` `/readyz` `/healthz` (kula library) |
-| `github.com/prometheus/client_golang`        | Metrics + `promhttp` (data plane)                       |
-| `github.com/getsentry/sentry-go` + `/slog`   | Error/trace reporting + slog bridge                     |
-| `sigs.k8s.io/controller-runtime/pkg/metrics` | Controller metrics registry (already transitive)        |
+| Module                                       | Purpose                                          |
+| -------------------------------------------- | ------------------------------------------------ |
+| `github.com/kula-app/go-health`              | Data-plane `/livez` `/readyz` `/healthz`         |
+| `github.com/prometheus/client_golang`        | Metrics + `promhttp` (data plane)                |
+| `github.com/getsentry/sentry-go` + `/slog`   | Error/trace reporting + slog bridge              |
+| `sigs.k8s.io/controller-runtime/pkg/metrics` | Controller metrics registry (already transitive) |
 
 See [references.md](references.md) for the projects these patterns were drawn from.

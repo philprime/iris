@@ -1,18 +1,18 @@
 # Distribution & release
 
 Iris ships as **container images + a Helm chart** — not as end-user CLI binaries. The release
-machinery follows the kula conventions used across the Go repos (multi-arch GHCR publish,
-`docker/metadata-action` tagging, version metadata via `-ldflags`, and a `KULA_RELEASE_BOT`
+machinery follows the philprime conventions used across the Go repos (multi-arch GHCR publish,
+`docker/metadata-action` tagging, version metadata via `-ldflags`, and a `PHILPRIME_RELEASE_BOT`
 GitHub App for automated cross-repo PRs).
 
 ## Artifacts
 
-| Artifact           | Registry / location                 | Built from                                                           |
-| ------------------ | ----------------------------------- | -------------------------------------------------------------------- |
-| `controller` image | `ghcr.io/kula-app/iris/controller`  | `images/controller/Dockerfile` (distroless)                          |
-| `relay` image      | `ghcr.io/kula-app/iris/relay`       | `images/relay/Dockerfile` (distroless)                               |
-| `postfix` image    | `ghcr.io/kula-app/iris/postfix`     | `images/postfix/Dockerfile` (`FROM boky/postfix` + baked `reloader`) |
-| Helm chart         | OCI: `ghcr.io/kula-app/charts/iris` | `chart/iris/`                                                        |
+| Artifact           | Registry / location                  | Built from                                                           |
+| ------------------ | ------------------------------------ | -------------------------------------------------------------------- |
+| `controller` image | `ghcr.io/philprime/iris/controller`  | `images/controller/Dockerfile` (distroless)                          |
+| `relay` image      | `ghcr.io/philprime/iris/relay`       | `images/relay/Dockerfile` (distroless)                               |
+| `postfix` image    | `ghcr.io/philprime/iris/postfix`     | `images/postfix/Dockerfile` (`FROM boky/postfix` + baked `reloader`) |
+| Helm chart         | OCI: `ghcr.io/philprime/charts/iris` | `chart/iris/`                                                        |
 
 ## Image build
 
@@ -51,13 +51,13 @@ Release flow:
 ```sh
 make chart-lint       # helm lint
 make chart-package    # helm package chart/iris
-# CI on a vX.Y.Z tag: helm push iris-X.Y.Z.tgz oci://ghcr.io/kula-app/charts
+# CI on a vX.Y.Z tag: helm push iris-X.Y.Z.tgz oci://ghcr.io/philprime/charts
 ```
 
 Install:
 
 ```sh
-helm install iris oci://ghcr.io/kula-app/charts/iris --version X.Y.Z -n iris-system --create-namespace
+helm install iris oci://ghcr.io/philprime/charts/iris --version X.Y.Z -n iris-system --create-namespace
 ```
 
 ## Release process
@@ -66,12 +66,12 @@ helm install iris oci://ghcr.io/kula-app/charts/iris --version X.Y.Z -n iris-sys
 2. Tag `vX.Y.Z` and push the tag.
 3. `publish.yml` builds + pushes the three multi-arch images with semver tags; the chart job
    packages and `helm push`es the OCI chart with matching `version`/`appVersion`.
-4. A GitHub Release is created with notes; the `KULA_RELEASE_BOT` App token is used for any
+4. A GitHub Release is created with notes; the `PHILPRIME_RELEASE_BOT` App token is used for any
    automated PRs (e.g. bumping a deployment repo to the new chart version).
 
 `main` must always be deployable; chart and image versions move together.
 
 ## Consuming Iris elsewhere
 
-kula clusters install the chart via Pulumi (wrapping the OCI chart) the same way other shared
+philprime clusters install the chart via Pulumi (wrapping the OCI chart) the same way other shared
 operators are deployed. Pin to a specific `vX.Y.Z`; `latest` is for dev clusters only.

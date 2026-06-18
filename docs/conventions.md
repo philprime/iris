@@ -1,11 +1,11 @@
 # Conventions
 
-Iris follows kula's Go standards and kubebuilder conventions. Module
-`github.com/kula-app/iris`, Go 1.26, Makefile-driven.
+Iris follows philprime's Go standards and kubebuilder conventions. Module
+`github.com/philprime/iris`, Go 1.26, Makefile-driven.
 
 ## Repository layout
 
-kubebuilder conventions + kula's `cmd`/`internal` layout:
+kubebuilder conventions + philprime's `cmd`/`internal` layout:
 
 ```
 iris/

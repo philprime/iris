@@ -25,8 +25,8 @@ Public Internet ──:25/587/465──▶  [ Postfix Ingress ]   (N replicas, L
                                        └── renders Postfix maps → ConfigMap
 ```
 
-- **Project:** `github.com/kula-app/iris`
-- **API group:** `iris.kula.app/v1alpha1`
+- **Project:** `github.com/philprime/iris`
+- **API group:** `iris.philprime.dev/v1alpha1`
 
 ## Goals
 
@@ -67,4 +67,4 @@ Public Internet ──:25/587/465──▶  [ Postfix Ingress ]   (N replicas, L
 | [testing.md](testing.md)           | Unit, envtest, kind e2e, conventions                                 |
 | [ci.md](ci.md)                     | GitHub Actions workflows                                             |
 | [distribution.md](distribution.md) | Images, Helm chart, versioning, release process                      |
-| [conventions.md](conventions.md)   | Repo layout, Go/kula coding conventions, commits                     |
+| [conventions.md](conventions.md)   | Repo layout, Go/philprime coding conventions, commits                |

@@ -1,7 +1,7 @@
 # Development setup
 
 How to get a local Iris development environment running. Iris follows the same local-dev shape
-as other kula Go controllers: a `Makefile` is the single entry point, `air` provides hot-reload,
+as other philprime Go controllers: a `Makefile` is the single entry point, `air` provides hot-reload,
 and `kind` provides a throwaway cluster.
 
 > All commands go through the `Makefile` — never run raw `go`. Run `make help` to list targets.

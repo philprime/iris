@@ -6,11 +6,11 @@ finalizers, owner references, leader election, controller-runtime metrics).
 
 ## The `Relay` CRD
 
-Group/Version/Kind: **`iris.kula.app/v1alpha1`, `Relay`** (namespaced). One `Relay` = one
+Group/Version/Kind: **`iris.philprime.dev/v1alpha1`, `Relay`** (namespaced). One `Relay` = one
 transformer Deployment+Service + a set of routes compiled into Postfix.
 
 ```yaml
-apiVersion: iris.kula.app/v1alpha1
+apiVersion: iris.philprime.dev/v1alpha1
 kind: Relay
 metadata:
   name: appstore-invites

@@ -6,7 +6,7 @@ FSL-1.1-MIT
 
 ## Notice
 
-Copyright 2026 kula app GmbH
+Copyright 2026 Philip Niedertscheider
 
 ## Terms and Conditions
 

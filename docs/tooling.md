@@ -1,6 +1,6 @@
 # Dev Tooling
 
-Iris uses the kula Go toolchain conventions: a `Makefile` front door, tools pinned via the
+Iris uses the philprime Go toolchain conventions: a `Makefile` front door, tools pinned via the
 `go.mod` `tool` directive, `dprint` for non-Go formatting, `staticcheck`/`govulncheck`/`go vet`
 for analysis, and `pre-commit` to enforce it all locally.
 

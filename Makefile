@@ -22,7 +22,7 @@ ENVTEST_K8S_VERSION ?= 1.31.0
 KIND_CLUSTER ?= iris
 
 # Container image coordinates. Override IMAGE_REGISTRY / IMAGE_TAG to publish.
-IMAGE_REGISTRY ?= ghcr.io/kula-app
+IMAGE_REGISTRY ?= ghcr.io/philprime
 IMAGE_TAG ?= dev
 CONTROLLER_IMG ?= $(IMAGE_REGISTRY)/iris-controller:$(IMAGE_TAG)
 RELAY_IMG ?= $(IMAGE_REGISTRY)/iris-relay:$(IMAGE_TAG)

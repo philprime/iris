@@ -1,4 +1,4 @@
-module github.com/kula-app/iris
+module github.com/philprime/iris
 
 go 1.26.4
 

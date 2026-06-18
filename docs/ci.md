@@ -1,6 +1,6 @@
 # Continuous integration
 
-GitHub Actions workflows mirror the kula controller convention (one concern per workflow). All
+GitHub Actions workflows mirror the philprime controller convention (one concern per workflow). All
 run on **push to `main`**, **pull requests**, and **`workflow_dispatch`**, each with a
 concurrency group that cancels in-progress runs for the same ref.
 
@@ -23,7 +23,7 @@ CRD/RBAC/webhook manifests and fails if the working tree changes — the committ
 
 ## `publish.yml` — image build & push
 
-Modeled on the kula multi-arch publish pattern:
+Modeled on the philprime multi-arch publish pattern:
 
 - `docker/setup-qemu-action` + `docker/setup-buildx-action` for **`linux/amd64` + `linux/arm64`**.
 - `docker/login-action` to **GHCR** (`ghcr.io`) using `GITHUB_TOKEN` (login + push skipped on PRs).
