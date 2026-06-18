@@ -291,7 +291,3 @@ type RelayList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Relay `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&Relay{}, &RelayList{})
-}
