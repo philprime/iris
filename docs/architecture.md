@@ -68,3 +68,10 @@ TLS: opportunistic STARTTLS on inbound; certificates via cert-manager.
   kube-proxy handles pod IP changes. Postfix reloads only when a route (`Relay`) changes.
 - **Raw TCP ports are declared once** on the LoadBalancer Service; everything below is dynamic.
 - **All stateful, hard-MTA concerns live in Postfix.** Everything Iris itself owns is stateless.
+
+## Observability
+
+Every binary exposes health/readiness probes, Prometheus metrics, and Sentry error reporting. The
+controller uses the controller-runtime manager's metrics + probe servers; the data-plane binaries
+(relay, reloader) use [`kula-app/go-health`](https://github.com/kula-app/go-health) + `promhttp`.
+Full surface (ports, metric catalogue, Sentry wiring) in [observability.md](observability.md).

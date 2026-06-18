@@ -54,6 +54,7 @@ Public Internet ──:25/587/465──▶  [ Postfix Ingress ]   (N replicas, L
 | [architecture.md](architecture.md) | Components, data flow, public exposure, key properties |
 | [kubernetes.md](kubernetes.md) | `Relay` CRD reference, controller/reconcilers, conflict resolution, status, RBAC, webhook, Helm chart |
 | [relay.md](relay.md) | Data plane: session pipeline, filters/scoring, transform, delivery contract, config format |
+| [observability.md](observability.md) | Health/readiness probes, Prometheus metrics, Sentry error reporting, logging |
 | [references.md](references.md) | Controllers studied for best practices + adopt/skip decisions |
 | [roadmap.md](roadmap.md) | Open questions & future work |
 

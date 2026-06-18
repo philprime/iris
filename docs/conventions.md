@@ -21,7 +21,10 @@ iris/
 │   ├── controller/         # relay_controller.go, config_controller.go
 │   ├── postfix/            # render transport / relay_domains / relay_recipient_maps (+ tests)
 │   ├── relay/             # server, session, filter, transform, deliver_http, deliver_smtp, envelope
-│   ├── config/            # env config w/ validator tags (both binaries)
+│   ├── config/            # env config w/ validator tags (all binaries)
+│   ├── metrics/           # iris_* prometheus collectors (one per binary; see observability.md)
+│   ├── logging/           # MultiHandler (terminal + Sentry slog fan-out)
+│   ├── observability/     # Sentry init + slog/logr bridge (shared by all binaries)
 │   └── webhook/           # validating webhook for Relay
 ├── config/                # kubebuilder kustomize bases: crd, rbac, manager, webhook
 ├── chart/iris/            # Helm chart (distribution; mirrors ingress-nginx)

@@ -11,7 +11,9 @@ were copied under `tmp/refs/` (gitignored) for analysis; kula repos were read in
 | `kula-app/ship` | CLI | Release/distribution: reusable `workflow_call`, multi-arch GHCR, version via `-ldflags`, `KULA_RELEASE_BOT`, checksums |
 | `cert-manager/cert-manager` | Operator | Thin `main`→cobra→options→`Run`; kubebuilder markers; integration-test framework (apiserver + webhook); Helm webhook/RBAC templating |
 | `cloudnative-pg/cloudnative-pg` | Workload operator | **Idempotent child-resource reconcile**, owner refs + ownership check, status patch with optimistic lock + retry, `meta.SetStatusCondition`, finalizers, CEL/RBAC markers, manager leader-election settings |
-| `fluxcd/source-controller` | Modern kubebuilder | **Status/conditions + patch-on-defer** reconcile structure, sub-reconciler chaining, terminal-vs-retryable error classification, pinned-tool Makefile |
+| `fluxcd/source-controller` | Modern kubebuilder | **Status/conditions + patch-on-defer** reconcile structure, sub-reconciler chaining, terminal-vs-retryable error classification, pinned-tool Makefile; manager metrics server (`:8080`) + `HealthProbeBindAddress`, custom collectors via `controller-runtime/pkg/metrics.Registry.MustRegister` |
+| `kula-app/go-health` | Health library | Data-plane `/livez` `/readyz` `/healthz` (RFC health+json); `RegisterReadyCheck` (traffic-gating) vs `RegisterCheck` (informational) split that keeps a flaky downstream from draining the relay |
+| `kula-app/bifrost`, `kula-app/app-store-metadata-api` (`asm-relay`) | kula HTTP services | The house **Sentry** pattern: `sentry-go` + `sentry-go/slog`, `MultiHandler` fan-out (terminal + Sentry), `defer sentry.Flush`, `BeforeSend`/`TracesSampler` to drop probe noise, `iris_*`-style metric naming, `<svc>@<version>:<sha>` release via ldflags |
 
 ## Decisions locked from this survey
 

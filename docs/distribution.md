@@ -17,8 +17,10 @@ GitHub App for automated cross-repo PRs).
 ## Image build
 
 - **controller / relay** — multi-stage: `golang:<ver>-alpine` builder → `gcr.io/distroless/static:nonroot`.
-  `CGO_ENABLED=0`, `-trimpath`, `-ldflags="-s -w -X main.version=… -X main.commit=… -X main.date=…"`.
-  Runs as `nonroot:nonroot`.
+  `CGO_ENABLED=0`, `-trimpath`,
+  `-ldflags="-s -w -X main.version=… -X main.commit=… -X main.date=… -X main.sentryRelease=iris@<version>:<git-sha>"`.
+  The `sentryRelease` is the unified Sentry release identifier (see
+  [observability.md](observability.md#release-identifier)). Runs as `nonroot:nonroot`.
 - **postfix** — `FROM boky/postfix:<pinned>` with the `reloader` binary copied in; the reloader is
   the entrypoint that starts Postfix and watches the mounted routing ConfigMap (see
   [architecture.md](architecture.md)).

@@ -139,7 +139,9 @@ Grounded in cloudnative-pg, source-controller, and cert-manager (see [references
   Webhook serving certificates are provisioned by **cert-manager** (a `Certificate` + CA injection)
   or Helm-generated certs.
 - Manager: leader election on (`LeaseDuration` 15s / `RenewDeadline` 10s,
-  `LeaderElectionReleaseOnCancel: true`), metrics endpoint, health/readiness probes.
+  `LeaderElectionReleaseOnCancel: true`), metrics endpoint (`:8080`/secure `:8443`),
+  health/readiness probes (`:8081`). Probe and metric wiring, custom `iris_*` collectors, and
+  Sentry are documented in [observability.md](observability.md).
 
 ## RBAC
 

@@ -90,4 +90,9 @@ file carries a `version` field for forward compatibility, and stays debuggable w
 
 ## Observability
 
-`slog` (with `…Context` variants) + per-destination success/failure/score metrics.
+`slog` (with `…Context` variants) + per-destination success/failure/score metrics. The relay
+serves `/livez` `/readyz` `/healthz` via [`kula-app/go-health`](https://github.com/kula-app/go-health)
+and `/metrics` via `promhttp` on a small admin HTTP server (no Kubernetes API access). Destination
+reachability is a `/healthz`-only (informational) check, **not** a readiness gate — Postfix queues
+and retries on failure, so a flaky downstream must not drain the relay. Full surface, the `iris_relay_*`
+metric catalogue, and Sentry capture rules are in [observability.md](observability.md).
