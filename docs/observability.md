@@ -13,12 +13,12 @@ because the control plane is a controller-runtime manager while the data plane i
 
 This split is deliberate: the controller already gets a metrics server and probe endpoints from
 the manager, so layering `go-health` on top would be redundant. The data-plane binaries have no
-manager, so they use `go-health` — the same library every other philprime HTTP service uses.
+manager, so they use `go-health`, the same library every other philprime HTTP service uses.
 
 ## Listen addresses
 
 Each binary serves its observability surface on fixed, separately-bound ports (kubebuilder
-defaults for the controller; a single admin server for the data plane), configurable via env:
+defaults for the controller, a single admin server for the data plane), configurable via env:
 
 | Binary     | Port    | Serves                                      | Env                            |
 | ---------- | ------- | ------------------------------------------- | ------------------------------ |
@@ -28,9 +28,9 @@ defaults for the controller; a single admin server for the data plane), configur
 | relay      | `:8080` | `/metrics`, `/livez`, `/readyz`, `/healthz` | `IRIS_RELAY_ADMIN_ADDR`        |
 | reloader   | `:8080` | `/metrics`, `/livez`, `/readyz`             | `IRIS_RELOADER_ADMIN_ADDR`     |
 
-The relay's SMTP listener (25, from Postfix) is separate from its admin HTTP server; the admin
+The relay's SMTP listener (25, from Postfix) is separate from its admin HTTP server. The admin
 server hosts only probes + metrics and needs **no Kubernetes API access** (consistent with
-[relay.md](relay.md)). Probe ports are cluster-internal; do not expose `/metrics` or `/healthz`
+[relay.md](relay.md)). Probe ports are cluster-internal, so do not expose `/metrics` or `/healthz`
 publicly (see [Security](#security--cardinality)).
 
 ## Health & readiness
@@ -52,7 +52,7 @@ mgr.AddReadyzCheck("webhook", mgr.GetWebhookServer().StartedChecker())
 mgr.AddReadyzCheck("ping", healthz.Ping)
 ```
 
-Leader election does **not** gate readiness — a non-leader replica is healthy and ready; it is
+Leader election does **not** gate readiness. A non-leader replica is healthy and ready, it is
 simply idle. (controller-runtime exports `leader_election_master_status` for that signal.)
 
 ### Relay (go-health)
@@ -80,8 +80,8 @@ exists.
 
 ### Reloader
 
-- `/livez` — process alive (`system:time` heartbeat only).
-- `/readyz` — Postfix master reachable (`postfix status`) **and** the last `postmap` + `postfix
+- `/livez`: process alive (`system:time` heartbeat only).
+- `/readyz`: Postfix master reachable (`postfix status`) **and** the last `postmap` + `postfix
   reload` succeeded. A failed reload means the ingress is serving stale routes, which should drain
   the replica.
 
@@ -90,13 +90,13 @@ exists.
 Naming follows the philprime convention (`asm-relay`): an `iris_` prefix, declared as package-level
 collectors in an `internal/metrics` package and registered once in `init()`. Counters end in
 `_total`, durations in `_seconds` (histograms with `prometheus.DefBuckets` unless a domain range
-fits better). Keep label cardinality bounded — never label by message-id, recipient, or sender.
+fits better). Keep label cardinality bounded. Never label by message-id, recipient, or sender.
 
 ### Controller
 
 v1 serves `/metrics` as **plain HTTP on `:8080`**, kept cluster-internal by a NetworkPolicy (not
-controller-runtime's secure `:8443` TLS+authn serving — avoided for v1 to skip the cert plumbing;
-revisit if metrics are ever scraped across a trust boundary).
+controller-runtime's secure `:8443` TLS+authn serving, which is avoided for v1 to skip the cert
+plumbing, and can be revisited if metrics are ever scraped across a trust boundary).
 
 The controller registers its collectors with **controller-runtime's** registry, not the global
 default one, so they serve on the manager's metrics endpoint:
@@ -107,7 +107,7 @@ func init() { metrics.Registry.MustRegister(relaysGauge, routeConflictsGauge, po
 ```
 
 controller-runtime already provides the reconcile/workqueue/client/leader-election families for
-free — **do not reimplement them**:
+free, so **do not reimplement them**:
 
 | Metric (provided)                                          | Use                               |
 | ---------------------------------------------------------- | --------------------------------- |
@@ -118,8 +118,8 @@ free — **do not reimplement them**:
 | `leader_election_master_status`                            | which replica is leading          |
 | `rest_client_requests_total{code,method}`                  | API-server pressure               |
 
-Iris adds only domain metrics the runtime can't know about (low cardinality — aggregate, not
-per-relay; per-relay state belongs in CR conditions + kube-state-metrics):
+Iris adds only domain metrics the runtime can't know about (low cardinality, aggregated rather than
+per-relay, because per-relay state belongs in CR conditions + kube-state-metrics):
 
 | Metric (iris)                       | Type    | Labels   | Meaning                                                          |
 | ----------------------------------- | ------- | -------- | ---------------------------------------------------------------- |
@@ -138,7 +138,7 @@ Default Prometheus registry, served via `promhttp.Handler()` on the admin server
 | `iris_relay_messages_total`            | Counter   | `result`                  | Messages by outcome (`delivered`/`rejected_size`/`rejected_sender`/`rejected_dkim`/`rejected_score`) |
 | `iris_relay_filter_score`              | Histogram | —                         | Heuristic score distribution (vs `minScore`)                                                         |
 | `iris_relay_message_bytes`             | Histogram | —                         | Accepted message size                                                                                |
-| `iris_relay_deliveries_total`          | Counter   | `destination,type,result` | Per-destination fan-out (`type`=`http`/`smtp`; `result`=`success`/`failure`)                         |
+| `iris_relay_deliveries_total`          | Counter   | `destination,type,result` | Per-destination fan-out (`type`=`http`/`smtp`, `result`=`success`/`failure`)                         |
 | `iris_relay_delivery_duration_seconds` | Histogram | `destination,type`        | Per-destination delivery latency                                                                     |
 | `iris_relay_deliveries_in_flight`      | Gauge     | —                         | Concurrent in-flight deliveries                                                                      |
 
@@ -154,14 +154,14 @@ what drives the SMTP 4xx → Postfix-retry path.
 | `iris_postfix_reload_duration_seconds`              | Histogram | —        | Reload latency                                    |
 | `iris_postfix_config_last_reload_timestamp_seconds` | Gauge     | —        | Unix time of the last successful reload           |
 
-> **Postfix MTA metrics** (queue depth, bounce/defer rates) are **not** in v1 — `boky/postfix`
-> exposes no Prometheus endpoint. A `postfix_exporter` sidecar is a [roadmap](roadmap.md) item.
+> **Postfix MTA metrics** (queue depth, bounce/defer rates) are **not** in v1, because `boky/postfix`
+> exposes no Prometheus endpoint. A `postfix_exporter` sidecar is a possible future addition.
 
 ### Scraping
 
 The Helm chart ships a **ServiceMonitor** per component (see [kubernetes.md](kubernetes.md) and
 [distribution.md](distribution.md)). The controller and Postfix tier are singletons with stable
-Services; for relays, the `RelayReconciler` adds a named `metrics` port to each relay Service and
+Services. For relays, the `RelayReconciler` adds a named `metrics` port to each relay Service and
 a single ServiceMonitor selects them all by label, so new relays are scraped without chart
 changes.
 
@@ -171,7 +171,7 @@ Sentry is the in-app error/trace channel, wired identically across all three bin
 established philprime pattern (`bifrost`, `asm-relay`): `github.com/getsentry/sentry-go` +
 `github.com/getsentry/sentry-go/slog`. It is **opt-in** (`IRIS_SENTRY_ENABLED=false` by default) so
 local/dev and air-gapped installs run clean. v1 posture is **errors + logs only, tracing off**
-(`IRIS_SENTRY_ENABLE_TRACING=false`, `IRIS_SENTRY_TRACES_SAMPLE_RATE=0.0`); operators opt into
+(`IRIS_SENTRY_ENABLE_TRACING=false`, `IRIS_SENTRY_TRACES_SAMPLE_RATE=0.0`). Operators opt into
 performance tracing per environment. The `TracesSampler` that drops probe spans is wired regardless,
 so enabling tracing later never floods the quota with health traffic.
 
@@ -216,16 +216,16 @@ logs flow through the same pipeline.
 
 Capture **unexpected** failures, never routine protocol outcomes:
 
-- **Controller** — `sentry.CaptureException(err)` on a _terminal_ reconcile error (the same place
-  `Ready=False` is set in the patch-on-defer block; see
-  [kubernetes.md](kubernetes.md#reconcile--status-patterns)). Transient requeues are normal flow —
+- **Controller**: `sentry.CaptureException(err)` on a _terminal_ reconcile error (the same place
+  `Ready=False` is set in the patch-on-defer block, see
+  [kubernetes.md](kubernetes.md#reconcile--status-patterns)). Transient requeues are normal flow, so
   **do not** capture them. Tag the scope with the `Relay` namespace/name.
-- **Relay** — capture transform/Jsonnet evaluation errors and recovered panics in an SMTP session.
+- **Relay**: capture transform/Jsonnet evaluation errors and recovered panics in an SMTP session.
   **Do not** capture filter rejections or `required`-destination 4xx: those are expected,
   documented outcomes already covered by metrics ([relay.md](relay.md#delivery-contract)).
-- **Reloader** — capture `postmap`/`postfix reload` failures (a stale ingress is a real incident).
+- **Reloader**: capture `postmap`/`postfix reload` failures (a stale ingress is a real incident).
 
-`BeforeSend` is the central kill-switch for anything noisy that slips through; `TracesSampler`
+`BeforeSend` is the central kill-switch for anything noisy that slips through. `TracesSampler`
 returns `0.0` for probe/metrics spans so health traffic doesn't drown the trace quota.
 
 ### Release identifier
@@ -257,21 +257,21 @@ injected as env on each Deployment.
 ## Logging
 
 `slog` everywhere (with `…Context` variants when a `context.Context` is in scope), structured
-fields only — never `fmt.Sprintf` in messages (see [conventions.md](conventions.md)). The
-`MultiHandler` is the single fan-out point; without Sentry it is just the terminal handler. The
+fields only, never `fmt.Sprintf` in messages (see [conventions.md](conventions.md)). The
+`MultiHandler` is the single fan-out point. Without Sentry it is just the terminal handler. The
 `go-health` engine logs through the same injected logger via `core.WithLogger`, and is silent on
 `pass` so the kubelet's 10s probe cadence does not flood logs.
 
 ## Security & cardinality
 
 - Keep `/metrics` and the probe endpoints **cluster-internal**. They leak topology and `/metrics`
-  is unauthenticated; the chart ships a **NetworkPolicy** restricting scrape access to the
+  is unauthenticated, so the chart ships a **NetworkPolicy** restricting scrape access to the
   monitoring namespace. (Secure `:8443` TLS serving is the fallback only if metrics ever cross a
   trust boundary.)
 - `go-health` zeroes a check's `Output` on `pass` and can be wrapped to redact downstream error
-  strings — relevant if `/healthz` is ever exposed beyond the cluster (see its README §Security).
+  strings, relevant if `/healthz` is ever exposed beyond the cluster (see its README §Security).
 - Never put unbounded values (message-id, addresses, remote IPs) in metric labels or in low-level
-  Sentry tags; they belong in logs/breadcrumbs, not in time series or issue grouping keys.
+  Sentry tags. They belong in logs/breadcrumbs, not in time series or issue grouping keys.
 
 ## Dependencies introduced
 

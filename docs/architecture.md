@@ -1,40 +1,43 @@
 # Architecture
 
 Iris is split into a **control plane** (the Iris controller) and a **data plane** (the Postfix
-ingress and the relay pods). The control plane is replicated for availability; the data plane is
+ingress and the relay pods). The control plane is replicated for availability. The data plane is
 replicated for throughput.
 
 ## Components
 
-1. **Iris controller (control plane)** — Go + controller-runtime. Leader-elected, replicated
-   for availability (default 2 replicas; only the leader reconciles). Runs two reconcilers under
+1. **Iris controller (control plane)**. Go + controller-runtime. Leader-elected, replicated
+   for availability (default 2 replicas, but only the leader reconciles). Runs two reconcilers under
    one manager (see [kubernetes.md](kubernetes.md#controller-internals)). Owns CRD status and a
    validating webhook.
 
-2. **Postfix ingress (data-plane front door)** — `boky/postfix` Deployment (N replicas) behind a
+2. **Postfix ingress (data-plane front door)**. A `boky/postfix` Deployment (N replicas) behind a
    LoadBalancer Service on 25/587/465. Provides TLS (opportunistic STARTTLS), queueing,
    retry/backoff, and bounces. Configured via the Helm chart (a singleton per install, like
-   ingress-nginx's controller) — **not** a CRD. Its routing config is generated from the `Relay`
+   ingress-nginx's controller) and **not** a CRD. Its routing config is generated from the `Relay`
    CRs.
 
-3. **Postfix image + in-container reloader** — a custom image `FROM boky/postfix` with a small
+3. **Postfix image + in-container reloader**. A custom image `FROM boky/postfix` with a small
    reloader process (`cmd/reloader`) that starts Postfix, watches the mounted routing ConfigMap
-   (inotify), and runs `postmap` + `postfix reload` on change. A separate sidecar is **not** used:
-   it cannot cleanly signal another container's Postfix master (separate process namespaces, shared
-   queue/spool issues).
+   (inotify), and runs `postmap` + `postfix reload` on change. A separate sidecar is **not** used
+   because it cannot cleanly signal another container's Postfix master (separate process
+   namespaces, shared queue/spool issues).
 
-4. **Relay pod (data-plane transformer)** — a single reusable Go image (`emersion/go-smtp`
+4. **Relay pod (data-plane transformer)**. A single reusable Go image (`emersion/go-smtp`
    server). One Deployment+Service per `Relay`. Receives SMTP from Postfix, applies filters,
-   transforms, and delivers. Configured entirely from a mounted file + mounted Secrets; **needs no
-   Kubernetes API access**. Internals in [relay.md](relay.md).
+   transforms, and delivers. Configured entirely from a mounted file + mounted Secrets, and
+   **needs no Kubernetes API access**. Internals in [relay.md](relay.md).
 
-5. **Helm chart** — installs controller + CRDs + RBAC + Postfix tier + LoadBalancer Service +
+5. **Helm chart**. Installs controller + CRDs + RBAC + Postfix tier + LoadBalancer Service +
    webhook + ServiceMonitor + PDB, mirroring the ingress-nginx chart layout.
 
 ## Data flow
 
-```
-Internet ─▶ Postfix ingress ─(transport map: recipient → Service DNS)─▶ Relay pod ─▶ destinations
+```mermaid
+flowchart LR
+    internet["Internet"] --> ingress["Postfix ingress"]
+    ingress -->|"transport map: recipient → Service DNS"| relay["Relay pod"]
+    relay --> dest["destinations"]
 ```
 
 1. Mail arrives on the public LoadBalancer (port 25/587/465) and is accepted by Postfix.
@@ -42,7 +45,7 @@ Internet ─▶ Postfix ingress ─(transport map: recipient → Service DNS)─
    route each recipient to the matching relay's **Service DNS name** via the `smtp:` transport.
 3. The relay runs the inbound pipeline (filter → transform → fan-out deliver) and reflects the
    result back to Postfix as an SMTP status code.
-4. On failure of a `required` destination, the relay returns SMTP 4xx; Postfix keeps the message
+4. On failure of a `required` destination, the relay returns SMTP 4xx. Postfix keeps the message
    in **its** queue and retries with backoff. The relay holds no state.
 
 This is **at-least-once** delivery. The full delivery contract (idempotency, fan-out atomicity,
@@ -52,26 +55,26 @@ This is **at-least-once** delivery. The full delivery contract (idempotency, fan
 
 Modeled as an exposure `mode`, defaulting to the portable option:
 
-- **`loadBalancer`** (default, v1) — a Service `type=LoadBalancer` on 25/587/465 in front of
-  Postfix. The cloud LB gives a stable public IP for MX records. Port 25 is raw TCP; this avoids
+- **`loadBalancer`** (default, v1). A Service `type=LoadBalancer` on 25/587/465 in front of
+  Postfix. The cloud LB gives a stable public IP for MX records. Port 25 is raw TCP, which avoids
   HTTP-first ingress controllers entirely.
-- **`traefik`** (documented, later phase) — emit `IngressRouteTCP`. Requires a dedicated Traefik
+- **`traefik`** (documented, later phase). Emit `IngressRouteTCP`. Requires a dedicated Traefik
   **entrypoint** on port 25 in Traefik's _static_ config (cannot be injected by a CRD), which is
   the known friction point.
-- **`none`** — operators wire their own front Service.
+- **`none`**. Operators wire their own front Service.
 
-TLS: opportunistic STARTTLS on inbound; certificates via cert-manager.
+TLS: opportunistic STARTTLS on inbound, with certificates via cert-manager.
 
 ## Key properties
 
 - **Relay-pod churn never reloads Postfix.** Transport targets are Service DNS names, so
   kube-proxy handles pod IP changes. Postfix reloads only when a route (`Relay`) changes.
-- **Raw TCP ports are declared once** on the LoadBalancer Service; everything below is dynamic.
+- **Raw TCP ports are declared once** on the LoadBalancer Service. Everything below is dynamic.
 - **All stateful, hard-MTA concerns live in Postfix.** Everything Iris itself owns is stateless.
 
 ## Observability
 
 Every binary exposes health/readiness probes, Prometheus metrics, and Sentry error reporting. The
-controller uses the controller-runtime manager's metrics + probe servers; the data-plane binaries
+controller uses the controller-runtime manager's metrics + probe servers. The data-plane binaries
 (relay, reloader) use [`kula-app/go-health`](https://github.com/kula-app/go-health) + `promhttp`.
 Full surface (ports, metric catalogue, Sentry wiring) in [observability.md](observability.md).

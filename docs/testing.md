@@ -5,12 +5,12 @@ and **kind** for end-to-end coverage of the whole chain.
 
 ## Unit tests
 
-- Table-driven with `t.Run`; `t.Parallel()` where state is isolated.
-- Same-package (`package x`) for internal unit tests; `package x_test` for black-box/integration.
+- Table-driven with `t.Run`, and `t.Parallel()` where state is isolated.
+- Same-package (`package x`) for internal unit tests. Use `package x_test` for black-box/integration.
 - Pure logic lives in small, well-bounded packages so it tests without a cluster:
-  - `internal/postfix` — map rendering (`transport`, `relay_domains`, `relay_recipient_maps`),
-    conflict resolution ordering.
-  - `internal/relay` — filter scoring, MIME → canonical envelope, Jsonnet transform, idempotency
+  - `internal/postfix` handles map rendering (`transport`, `relay_domains`,
+    `relay_recipient_maps`) and conflict resolution ordering.
+  - `internal/relay` covers filter scoring, MIME → canonical envelope, Jsonnet transform, idempotency
     key derivation, fan-out result aggregation (which combination of `required` failures yields
     SMTP 4xx vs 250).
 
@@ -25,9 +25,10 @@ Controller reconcilers are tested against a real Kubernetes API server (apiserve
 kubelet/scheduler) provided by `setup-envtest`. This validates CRD schemas, status/conditions,
 owner references, and finalizer behavior without a full cluster.
 
-- Binaries are fetched by `make setup-envtest`; `make test` sets `KUBEBUILDER_ASSETS`.
-- Use these for: a `Relay` create → Deployment+Service appear; a conflicting `Relay` →
-  `Conflict=True` and not compiled; delete → finalizer releases the route from the aggregate.
+- Binaries are fetched by `make setup-envtest`, and `make test` sets `KUBEBUILDER_ASSETS`.
+- Use these for the following. A `Relay` create makes a Deployment+Service appear. A conflicting
+  `Relay` is marked `Conflict=True` and not compiled. A delete makes the finalizer release the
+  route from the aggregate.
 
 ## End-to-end (kind)
 

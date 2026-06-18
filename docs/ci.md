@@ -15,13 +15,13 @@ concurrency group that cancels in-progress runs for the same ref.
 
 Each Go workflow uses `actions/setup-go` with the version from `go.mod` and module caching.
 
-## `generate.yml` — keeping codegen honest
+## `generate.yml` (keeping codegen honest)
 
 Because Iris defines CRDs, `generate.yml` regenerates `zz_generated.deepcopy.go` and the
-CRD/RBAC/webhook manifests and fails if the working tree changes — the committed `config/` and
+CRD/RBAC/webhook manifests and fails if the working tree changes. The committed `config/` and
 `chart/iris/crds/` must match `api/v1alpha1`. Run `make generate` before pushing.
 
-## `publish.yml` — image build & push
+## `publish.yml` (image build & push)
 
 Modeled on the philprime multi-arch publish pattern:
 

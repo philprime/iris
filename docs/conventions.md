@@ -42,14 +42,15 @@ iris/
 
 ## Go conventions
 
-- **Makefile targets only** — never raw `go`; run `make help` to discover targets.
+- **Makefile targets only**, never raw `go`. Run `make help` to discover targets.
 - **`make format` before committing** (pre-commit runs gofmt/goimports + vet/staticcheck).
 - **Config:** environment variables only, validated at startup with `validator` struct tags.
   Prefix `IRIS_<COMPONENT>_<SETTING>` (flag > env precedence where flags exist).
-- **Logging:** `slog` with `…Context` variants when a `context.Context` is available; structured
-  fields, never `fmt.Sprintf` in messages; never `fmt.Print` in services.
-- **Errors:** wrap with `fmt.Errorf("context: %w", err)`; lowercase error strings (ST1005);
-  exported sentinel errors in the package that owns the failure; log OR return, never both.
+- **Logging:** `slog` with `…Context` variants when a `context.Context` is available. Use
+  structured fields, never `fmt.Sprintf` in messages, and never `fmt.Print` in services.
+- **Errors:** wrap with `fmt.Errorf("context: %w", err)` and use lowercase error strings
+  (ST1005). Put exported sentinel errors in the package that owns the failure. Log OR return,
+  never both.
 - **DI:** constructor functions (`NewX`), accept interfaces / return concrete types, no global
   state.
 

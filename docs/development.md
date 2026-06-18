@@ -1,10 +1,10 @@
 # Development setup
 
 How to get a local Iris development environment running. Iris follows the same local-dev shape
-as other philprime Go controllers: a `Makefile` is the single entry point, `air` provides hot-reload,
+as other philprime Go controllers. A `Makefile` is the single entry point, `air` provides hot-reload,
 and `kind` provides a throwaway cluster.
 
-> All commands go through the `Makefile` — never run raw `go`. Run `make help` to list targets.
+> All commands go through the `Makefile`. Never run raw `go`. Run `make help` to list targets.
 > Tooling reference: [tooling.md](tooling.md).
 
 ## Prerequisites
@@ -19,7 +19,7 @@ and `kind` provides a throwaway cluster.
 | dprint  | Non-Go formatting                      | `make init`             |
 
 Go-based tools (`controller-gen`, `setup-envtest`, `air`, `delve`, `staticcheck`, `govulncheck`)
-are declared in the `go.mod` `tool` directive and run via `go tool` — no manual install.
+are declared in the `go.mod` `tool` directive and run via `go tool`, so there is no manual install.
 
 ## First-time setup
 
@@ -32,7 +32,7 @@ make build     # build controller, relay, reloader binaries into dist/
 
 ## Running locally
 
-The controller runs out-of-cluster against whatever cluster your `kubeconfig` points at; the
+The controller runs out-of-cluster against whatever cluster your `kubeconfig` points at. The
 data plane (Postfix + relay) runs in-cluster.
 
 ```sh
@@ -49,7 +49,7 @@ make deploy      # install the chart (controller + Postfix tier) into the cluste
 make kind-down   # tear it down
 ```
 
-For data-plane iteration, the **relay** runs as a normal pod; build and load its image into kind:
+For data-plane iteration, the **relay** runs as a normal pod. Build and load its image into kind:
 
 ```sh
 make build-docker        # buildx the controller/relay/postfix images
@@ -58,7 +58,7 @@ make kind-load           # load images into the kind cluster
 
 ## Debugging
 
-`delve` is available via `go tool dlv`. The `air` configs build with symbols for dev; attach
+`delve` is available via `go tool dlv`. The `air` configs build with symbols for dev. Attach
 delve to the running `./tmp/controller` process, or run `go tool dlv debug ./cmd/controller`.
 
 ## Testing locally

@@ -11,11 +11,11 @@ For each inbound SMTP session from the Postfix ingress:
 1. **`MAIL FROM`** → sender filter (allowed sender domains).
 2. **`RCPT TO`** → route match (the relay only accepts recipients it claims).
 3. **`DATA`** →
-   - enforce `maxMessageBytes` (reject 552 if exceeded);
-   - parse MIME;
-   - run filter **scoring** (reject 5xx if below `minScore`);
-   - compute the **idempotency key** once;
-   - **fan out** to all destinations (per-destination transform + deliver);
+   - enforce `maxMessageBytes` (reject 552 if exceeded).
+   - parse MIME.
+   - run filter **scoring** (reject 5xx if below `minScore`).
+   - compute the **idempotency key** once.
+   - **fan out** to all destinations (per-destination transform + deliver).
    - return `250` if all `required` destinations succeed, `4xx` if any `required` destination
      fails (Postfix retries). Best-effort (`required: false`) failures are logged + metered.
 
@@ -25,23 +25,23 @@ Declarative inbound validation from `spec.filters`:
 
 - **Hard rules** (reject before forwarding): `maxMessageBytes`, `allowedSenderDomains`,
   `requireDKIM` (DKIM `d=` must match).
-- **Heuristic score** — sum of matched `scoreSignals`; accept when `score >= minScore`. Signals
+- **Heuristic score**, the sum of matched `scoreSignals`. Accept when `score >= minScore`. Signals
   are named, reusable checks:
-  - `fromDomain` — `From:` header domain is allowed.
-  - `messageIdDomain` — `Message-ID` domain is allowed.
-  - `dkimDomain` — DKIM `d=` domain is allowed.
-  - `authResults` — `Authentication-Results` shows DKIM pass for an allowed domain.
-  - `bodyLinkDomain` — body contains a link to an allowed domain.
+  - `fromDomain`, the `From:` header domain is allowed.
+  - `messageIdDomain`, the `Message-ID` domain is allowed.
+  - `dkimDomain`, the DKIM `d=` domain is allowed.
+  - `authResults`, the `Authentication-Results` shows DKIM pass for an allowed domain.
+  - `bodyLinkDomain`, the body contains a link to an allowed domain.
 
 ## Transform
 
 Each destination transforms independently:
 
-1. **MIME → canonical envelope** (the fixed schema below).
+1. **MIME to canonical envelope** (the fixed schema below).
 2. **Optional Jsonnet** (`google/go-jsonnet`) per destination, remapping the canonical envelope
    into the consumer's own schema (Ory-Kratos-style mapping). Referenced via
    `jsonnetConfigMapRef`.
-3. **Payload format** — `json` (canonical envelope, default) or `raw` (`message/rfc822`).
+3. **Payload format**, either `json` (canonical envelope, default) or `raw` (`message/rfc822`).
 
 ### Canonical JSON envelope
 
@@ -68,9 +68,9 @@ documented, versioned schema:
 
 ## Delivery
 
-- **HTTP** — POST (or configured method) with a timeout, the `Idempotency-Key` header, and
+- **HTTP**, a POST (or configured method) with a timeout, the `Idempotency-Key` header, and
   secret-based `Authorization`.
-- **SMTP** — forward to a downstream host/port with optional STARTTLS/auth. (Pointing this at
+- **SMTP**, a forward to a downstream host/port with optional STARTTLS/auth. (Pointing this at
   another relay's Service is how manual relay→relay chaining is done.)
 
 ## Delivery contract
@@ -83,7 +83,7 @@ message again. Mitigations (standard for any queue-backed email system):
    envelope) so downstreams dedup.
 2. **`required: false`** marks best-effort destinations whose failure does not trigger a retry.
 
-This contract — _at-least-once, idempotency-key-deduped, `required` gates retry_ — is part of the
+This contract (_at-least-once, idempotency-key-deduped, `required` gates retry_) is part of the
 public API.
 
 ## Config file format
@@ -98,6 +98,6 @@ file carries a `version` field for forward compatibility, and stays debuggable w
 `slog` (with `…Context` variants) + per-destination success/failure/score metrics. The relay
 serves `/livez` `/readyz` `/healthz` via [`kula-app/go-health`](https://github.com/kula-app/go-health)
 and `/metrics` via `promhttp` on a small admin HTTP server (no Kubernetes API access). Destination
-reachability is a `/healthz`-only (informational) check, **not** a readiness gate — Postfix queues
+reachability is a `/healthz`-only (informational) check, **not** a readiness gate. Postfix queues
 and retries on failure, so a flaky downstream must not drain the relay. Full surface, the `iris_relay_*`
 metric catalogue, and Sentry capture rules are in [observability.md](observability.md).

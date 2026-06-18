@@ -6,9 +6,9 @@ for analysis, and `pre-commit` to enforce it all locally.
 
 ## Toolchain (go.mod `tool` directive)
 
-Tools are versioned as module dependencies and invoked with `go tool <name>` — no global installs,
-Renovate keeps them current. The pinned versions live in `go.mod`; the table below is only what
-each is for:
+Tools are versioned as module dependencies and invoked with `go tool <name>`, so there are no
+global installs and Renovate keeps them current. The pinned versions live in `go.mod`. The table
+below is only what each is for:
 
 | Tool                                                 | Purpose                                                                                |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -25,7 +25,7 @@ System tools (Go, Docker, kubectl, Helm, kind, …) come from the `Brewfile` via
 ## Makefile Targets
 
 The `Makefile` is the front door for every dev task. Run `make help` for the
-authoritative list — it is self-documenting, generated from the `##` comment
+authoritative list. It is self-documenting, generated from the `##` comment
 above each target. Targets are grouped into setup, code generation, building,
 development, testing, quality, local cluster (kind), deployment, and maintenance.
 
@@ -47,7 +47,7 @@ make generate   # regenerates zz_generated.deepcopy.go + CRD/RBAC/webhook manife
 
 ## Formatting
 
-- **Go:** `gofmt`/`go fmt` (enforced; also a pre-commit hook).
+- **Go:** `gofmt`/`go fmt` (enforced, and also a pre-commit hook).
 - **Everything else** (JSON, Markdown, TOML, YAML, Dockerfile): `dprint fmt`, configured in
   `dprint.json` (which also owns the list of excluded paths).
 
@@ -58,11 +58,11 @@ rule: error strings must start lowercase (see [conventions.md](conventions.md)).
 
 ## pre-commit
 
-`.pre-commit-config.yaml` runs three layers of hooks on commit — housekeeping (whitespace,
+`.pre-commit-config.yaml` runs three layers of hooks on commit: housekeeping (whitespace,
 merge-conflict, private-key, GitHub Actions/workflow schema, `shellcheck`), `make analyze`, and the
 `gofmt`/`dprint` formatters. See the file for the exact set.
 
-`make init` installs the git hook (via `make setup-hooks`, which runs `pre-commit install`); run
+`make init` installs the git hook (via `make setup-hooks`, which runs `pre-commit install`). Run
 `make setup-hooks` directly if you skipped `init`. Run `make format` before committing so the format
 hooks pass on the first try.
 
