@@ -1,0 +1,22 @@
+# This file tracks the information used to scaffold the project and to help
+# the kubebuilder plugins work. More info:
+# https://book.kubebuilder.io/reference/project-config.html
+domain: philprime.dev
+layout:
+- go.kubebuilder.io/v4
+projectName: iris
+repo: github.com/philprime/iris
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: philprime.dev
+  group: iris
+  kind: Relay
+  path: github.com/philprime/iris/api/v1alpha1
+  version: v1alpha1
+  webhooks:
+    validation: true
+    webhookVersion: v1
+version: "3"

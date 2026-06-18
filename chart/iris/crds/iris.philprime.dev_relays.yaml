@@ -1,0 +1,436 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: relays.iris.philprime.dev
+spec:
+  group: iris.philprime.dev
+  names:
+    kind: Relay
+    listKind: RelayList
+    plural: relays
+    shortNames:
+    - relay
+    singular: relay
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Programmed")].status
+      name: Programmed
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Relay is the Schema for the relays API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              RelaySpec defines the desired state of a Relay. One Relay compiles into a
+              set of Postfix routes plus a single transformer Deployment and Service.
+            properties:
+              deployment:
+                description: |-
+                  deployment tunes the per-relay transformer Deployment. Sensible
+                  defaults apply when it is omitted.
+                properties:
+                  replicas:
+                    description: replicas is the number of transformer pods.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  resources:
+                    description: resources sets the container resource requests and
+                      limits.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This field depends on the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                type: object
+              destinations:
+                description: |-
+                  destinations receive every accepted message. Fan-out is a broadcast to
+                  all destinations.
+                items:
+                  description: |-
+                    Destination is a single fan-out target. Exactly one of http or smtp must be
+                    set.
+                  properties:
+                    http:
+                      description: http delivers via an HTTP request.
+                      properties:
+                        authSecretRef:
+                          description: authSecretRef supplies the bearer token sent
+                            in the Authorization header.
+                          properties:
+                            key:
+                              description: key is the key within the Secret.
+                              minLength: 1
+                              type: string
+                            name:
+                              description: name is the Secret name.
+                              minLength: 1
+                              type: string
+                          required:
+                          - key
+                          - name
+                          type: object
+                        method:
+                          default: POST
+                          description: method is the HTTP method used for delivery.
+                          enum:
+                          - POST
+                          - PUT
+                          type: string
+                        payloadFormat:
+                          default: json
+                          description: |-
+                            payloadFormat selects the request body. json emits the canonical
+                            envelope and raw emits message/rfc822.
+                          enum:
+                          - json
+                          - raw
+                          type: string
+                        transform:
+                          description: transform optionally remaps the canonical envelope
+                            with Jsonnet.
+                          properties:
+                            jsonnetConfigMapRef:
+                              description: |-
+                                jsonnetConfigMapRef references the ConfigMap key holding the Jsonnet
+                                program.
+                              properties:
+                                key:
+                                  description: key is the key within the ConfigMap.
+                                  minLength: 1
+                                  type: string
+                                name:
+                                  description: name is the ConfigMap name.
+                                  minLength: 1
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                          required:
+                          - jsonnetConfigMapRef
+                          type: object
+                        url:
+                          description: url is the endpoint that receives the request.
+                          minLength: 1
+                          type: string
+                      required:
+                      - url
+                      type: object
+                    name:
+                      description: |-
+                        name identifies the destination. It is used in metrics labels and must
+                        be unique within the relay.
+                      minLength: 1
+                      type: string
+                    required:
+                      default: true
+                      description: |-
+                        required gates retry. A failure to a required destination returns SMTP
+                        4xx so Postfix retries. A best-effort destination failure is logged and
+                        metered without an upstream retry. Defaults to true.
+                      type: boolean
+                    smtp:
+                      description: smtp delivers to a downstream SMTP server.
+                      properties:
+                        authSecretRef:
+                          description: authSecretRef supplies SMTP AUTH credentials.
+                          properties:
+                            key:
+                              description: key is the key within the Secret.
+                              minLength: 1
+                              type: string
+                            name:
+                              description: name is the Secret name.
+                              minLength: 1
+                              type: string
+                          required:
+                          - key
+                          - name
+                          type: object
+                        host:
+                          description: host is the downstream SMTP host.
+                          minLength: 1
+                          type: string
+                        port:
+                          description: port is the downstream SMTP port.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                        startTLS:
+                          description: startTLS upgrades the connection with STARTTLS
+                            when true.
+                          type: boolean
+                      required:
+                      - host
+                      - port
+                      type: object
+                  required:
+                  - name
+                  type: object
+                  x-kubernetes-validations:
+                  - message: exactly one of http or smtp must be set
+                    rule: '(has(self.http) ? 1 : 0) + (has(self.smtp) ? 1 : 0) ==
+                      1'
+                minItems: 1
+                type: array
+              filters:
+                description: |-
+                  filters optionally rejects inbound mail with an SMTP 5xx before the
+                  message is transformed and delivered.
+                properties:
+                  allowedSenderDomains:
+                    description: allowedSenderDomains restricts the accepted envelope
+                      sender domains.
+                    items:
+                      type: string
+                    type: array
+                  maxMessageBytes:
+                    description: maxMessageBytes rejects messages larger than this
+                      size with SMTP 552.
+                    format: int64
+                    type: integer
+                  minScore:
+                    description: |-
+                      minScore accepts a message when its heuristic score is greater than or
+                      equal to this value.
+                    format: int32
+                    type: integer
+                  requireDKIM:
+                    description: |-
+                      requireDKIM requires a passing DKIM signature whose d= matches one of
+                      these domains.
+                    items:
+                      type: string
+                    type: array
+                  scoreSignals:
+                    description: scoreSignals lists the named checks summed into the
+                      heuristic score.
+                    items:
+                      description: ScoreSignal names a reusable heuristic check contributing
+                        to the score.
+                      enum:
+                      - fromDomain
+                      - messageIdDomain
+                      - dkimDomain
+                      - authResults
+                      - bodyLinkDomain
+                      type: string
+                    type: array
+                type: object
+              idempotency:
+                default: messageId
+                description: |-
+                  idempotency selects the stable key sent to every destination so
+                  downstreams can deduplicate redelivered messages.
+                enum:
+                - messageId
+                - sha256
+                type: string
+              routes:
+                description: |-
+                  routes declares the recipient addresses and domains this relay claims.
+                  They are compiled into the Postfix transport and relay_recipient_maps.
+                items:
+                  description: |-
+                    Route claims either an exact recipient address or a whole domain. Exactly
+                    one of address or domain must be set. An exact address wins over a domain
+                    route (Postfix transport semantics).
+                  properties:
+                    address:
+                      description: |-
+                        address is an exact recipient address, for example
+                        invites@invite.example.com.
+                      type: string
+                    domain:
+                      description: |-
+                        domain matches any local-part on the domain, for example
+                        invite.example.com.
+                      type: string
+                  type: object
+                  x-kubernetes-validations:
+                  - message: exactly one of address or domain must be set
+                    rule: '(has(self.address) ? 1 : 0) + (has(self.domain) ? 1 : 0)
+                      == 1'
+                minItems: 1
+                type: array
+            required:
+            - destinations
+            - routes
+            type: object
+          status:
+            description: RelayStatus reports the observed state of a Relay.
+            properties:
+              claimedRoutes:
+                description: |-
+                  claimedRoutes lists the route keys this relay currently owns in the
+                  aggregate Postfix configuration.
+                items:
+                  type: string
+                type: array
+              conditions:
+                description: |-
+                  conditions holds the Kstatus-style conditions (Ready, Programmed,
+                  Conflict).
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: observedGeneration is the generation last reconciled
+                  by the controller.
+                format: int64
+                type: integer
+              serviceRef:
+                description: serviceRef references the transformer Service reconciled
+                  for this relay.
+                properties:
+                  name:
+                    description: name is the Service name.
+                    type: string
+                required:
+                - name
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
