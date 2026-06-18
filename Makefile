@@ -129,6 +129,14 @@ generate-deepcopy:
 #
 # Writes CRDs to config/crd/bases (kustomize base) and copies them into
 # chart/iris/crds so the Helm chart stays in sync.
+#
+# IRIS_GEN_PATHS scopes controller-gen to our own source. We cannot use
+# "./..." because controller-gen's directory loader descends into the
+# gitignored reference clones under tmp/refs (cert-manager, cloudnative-pg,
+# source-controller) and would emit their CRDs too. Extend this list as
+# packages carrying markers are added (for example ./internal/... once the
+# reconcilers and webhook land).
+IRIS_GEN_PATHS ?= ./api/...
 .PHONY: manifests
 manifests:
 	@set -eu; $(LOG); \
@@ -138,7 +146,7 @@ manifests:
 		rbac:roleName=iris-manager-role \
 		crd \
 		webhook \
-		paths="./..." \
+		paths="$(IRIS_GEN_PATHS)" \
 		output:crd:artifacts:config=config/crd/bases \
 		output:rbac:artifacts:config=config/rbac \
 		output:webhook:artifacts:config=config/webhook; \
@@ -245,7 +253,13 @@ run:
 # TESTING & QUALITY ASSURANCE
 # ============================================================================
 
-## Run unit tests and envtest integration tests
+## Run unit tests and envtest integration tests (PKG=... RUN=... to focus)
+#
+# Defaults to the whole module. Narrow it for a fast TDD loop:
+#   make test PKG=./internal/postfix/...
+#   make test PKG=./internal/postfix/... RUN=TestRenderTransport
+# RUN passes -run and adds -v; a focused run also disables the test cache
+# (-count=1) so red-green cycles never see a stale pass.
 .PHONY: test
 test: setup-envtest
 	@set -eu; $(LOG); \
@@ -253,8 +267,11 @@ test: setup-envtest
 	log_info "Resolving envtest assets for Kubernetes $(ENVTEST_K8S_VERSION)..."; \
 	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)"; \
 	export KUBEBUILDER_ASSETS; \
-	log_info "go test ./..."; \
-	go test ./...; \
+	pkg="$(PKG)"; [ -n "$$pkg" ] || pkg="./..."; \
+	args="$$pkg"; \
+	if [ -n "$(RUN)" ]; then args="-run $(RUN) -v -count=1 $$pkg"; fi; \
+	log_info "go test $$args"; \
+	go test $$args; \
 	end_group; \
 	log_notice "Tests passed."
 
