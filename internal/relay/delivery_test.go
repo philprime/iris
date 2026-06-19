@@ -12,7 +12,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
@@ -69,6 +71,42 @@ func TestFanOutRequiredFailureGates(t *testing.T) {
 	if !res.RequiredFailed {
 		t.Error("required failure should mark the batch as required-failed")
 	}
+}
+
+// Feature: fan-out delivery contract
+// Scenario: destinations are delivered to concurrently
+//
+//	Given two destinations that each block until both have been entered
+//	When  the message is fanned out
+//	Then  both handlers are active at once, proving the fan-out is concurrent
+func TestFanOutDeliversConcurrently(t *testing.T) {
+	var arrived sync.WaitGroup
+	arrived.Add(2)
+	release := make(chan struct{})
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		arrived.Done()
+		<-release
+		w.WriteHeader(http.StatusOK)
+	})
+	a := httptest.NewServer(handler)
+	defer a.Close()
+	b := httptest.NewServer(handler)
+	defer b.Close()
+
+	targets := []Target{
+		{Name: "a", HTTP: &HTTPTarget{URL: a.URL, Format: v1alpha1.PayloadFormatJSON, Client: a.Client()}},
+		{Name: "b", HTTP: &HTTPTarget{URL: b.URL, Format: v1alpha1.PayloadFormatJSON, Client: b.Client()}},
+	}
+	go FanOut(context.Background(), targets, sampleEnvelope(), []byte("RAW"))
+
+	both := make(chan struct{})
+	go func() { arrived.Wait(); close(both) }()
+	select {
+	case <-both:
+	case <-time.After(2 * time.Second):
+		t.Fatal("destinations were not delivered concurrently")
+	}
+	close(release)
 }
 
 // Feature: fan-out delivery contract

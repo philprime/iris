@@ -298,6 +298,7 @@ test: setup-envtest
 	pkg="$(PKG)"; [ -n "$$pkg" ] || pkg="./..."; \
 	args="$$pkg"; \
 	if [ -n "$(RUN)" ]; then args="-run $(RUN) -v -count=1 $$pkg"; fi; \
+	if [ -n "$(RACE)" ]; then args="-race $$args"; fi; \
 	log_info "go test $$args"; \
 	go test $$args; \
 	end_group; \

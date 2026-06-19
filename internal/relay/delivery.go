@@ -11,6 +11,7 @@ package relay
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -49,19 +50,30 @@ type FanOutResult struct {
 	Results        map[string]error
 }
 
-// FanOut delivers the message to every destination. Fan-out is a broadcast and
-// is not atomic: a retry re-delivers to destinations that already succeeded, so
-// every delivery carries the idempotency key for downstream dedup.
+// FanOut delivers the message to every destination concurrently. Fan-out is a
+// broadcast and is not atomic: a retry re-delivers to destinations that already
+// succeeded, so every delivery carries the idempotency key for downstream dedup.
 func FanOut(ctx context.Context, targets []Target, env *Envelope, raw []byte) FanOutResult {
 	result := FanOutResult{Results: make(map[string]error, len(targets))}
+	var (
+		mu sync.Mutex
+		wg sync.WaitGroup
+	)
 	for i := range targets {
 		target := &targets[i]
-		err := deliverWithMetrics(ctx, target, env, raw)
-		result.Results[target.Name] = err
-		if err != nil && target.Required {
-			result.RequiredFailed = true
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := deliverWithMetrics(ctx, target, env, raw)
+			mu.Lock()
+			defer mu.Unlock()
+			result.Results[target.Name] = err
+			if err != nil && target.Required {
+				result.RequiredFailed = true
+			}
+		}()
 	}
+	wg.Wait()
 	return result
 }
 
