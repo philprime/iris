@@ -18,10 +18,11 @@ replicated for throughput.
    CRs.
 
 3. **Postfix image + in-container reloader**. A custom image `FROM boky/postfix` with a small
-   reloader process (`cmd/reloader`) that starts Postfix, watches the mounted routing ConfigMap
-   (inotify), and runs `postmap` + `postfix reload` on change. A separate sidecar is **not** used
-   because it cannot cleanly signal another container's Postfix master (separate process
-   namespaces, shared queue/spool issues).
+   reloader process (`cmd/reloader`) that watches the mounted routing maps (inotify) and runs
+   `postmap` + `postfix reload` on change. The image entrypoint runs the reloader as a background
+   companion to the Postfix master. A separate sidecar is **not** used because it cannot cleanly
+   signal another container's Postfix master (separate process namespaces, shared queue/spool
+   issues).
 
 4. **Relay pod (data-plane transformer)**. A single reusable Go image (`emersion/go-smtp`
    server). One Deployment+Service per `Relay`. Receives SMTP from Postfix, applies filters,

@@ -29,7 +29,7 @@ iris/
 ├── config/                # kubebuilder kustomize bases: crd, rbac, manager, webhook
 ├── chart/iris/            # Helm chart (distribution; mirrors ingress-nginx)
 │   ├── Chart.yaml  values.yaml  crds/  templates/
-├── images/{controller,relay,postfix}/Dockerfile
+├── build/{controller,relay,postfix}.Dockerfile  # + postfix-entrypoint.sh
 ├── docs/
 └── test/e2e/              # envtest + kind
 ```

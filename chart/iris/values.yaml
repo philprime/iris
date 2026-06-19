@@ -9,7 +9,7 @@ imagePullSecrets: []
 controller:
   replicas: 2
   image:
-    repository: ghcr.io/philprime/iris/controller
+    repository: ghcr.io/philprime/iris-controller
     # tag defaults to the chart appVersion when empty.
     tag: ""
     pullPolicy: IfNotPresent
@@ -17,7 +17,7 @@ controller:
   leaderElection: true
   # relayImage is the image the controller reconciles for each Relay's pod.
   relayImage:
-    repository: ghcr.io/philprime/iris/relay
+    repository: ghcr.io/philprime/iris-relay
     tag: ""
   resources:
     requests:
@@ -30,7 +30,7 @@ controller:
 postfix:
   replicas: 2
   image:
-    repository: ghcr.io/philprime/iris/postfix
+    repository: ghcr.io/philprime/iris-postfix
     tag: ""
     pullPolicy: IfNotPresent
   resources:

@@ -7,12 +7,12 @@ GitHub App for automated cross-repo PRs).
 
 ## Artifacts
 
-| Artifact           | Registry / location                  | Built from                                                           |
-| ------------------ | ------------------------------------ | -------------------------------------------------------------------- |
-| `controller` image | `ghcr.io/philprime/iris/controller`  | `images/controller/Dockerfile` (distroless)                          |
-| `relay` image      | `ghcr.io/philprime/iris/relay`       | `images/relay/Dockerfile` (distroless)                               |
-| `postfix` image    | `ghcr.io/philprime/iris/postfix`     | `images/postfix/Dockerfile` (`FROM boky/postfix` + baked `reloader`) |
-| Helm chart         | OCI: `ghcr.io/philprime/charts/iris` | `chart/iris/`                                                        |
+| Artifact           | Registry / location                  | Built from                                                          |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------------- |
+| `controller` image | `ghcr.io/philprime/iris-controller`  | `build/controller.Dockerfile` (distroless)                          |
+| `relay` image      | `ghcr.io/philprime/iris-relay`       | `build/relay.Dockerfile` (distroless)                               |
+| `postfix` image    | `ghcr.io/philprime/iris-postfix`     | `build/postfix.Dockerfile` (`FROM boky/postfix` + baked `reloader`) |
+| Helm chart         | OCI: `ghcr.io/philprime/charts/iris` | `chart/iris/`                                                       |
 
 ## Image build
 
@@ -21,9 +21,10 @@ GitHub App for automated cross-repo PRs).
   `-ldflags="-s -w -X main.version=… -X main.commit=… -X main.date=… -X main.sentryRelease=iris@<version>:<git-sha>"`.
   The `sentryRelease` is the unified Sentry release identifier (see
   [observability.md](observability.md#release-identifier)). Runs as `nonroot:nonroot`.
-- **postfix** is `FROM boky/postfix:<pinned>` with the `reloader` binary copied in. The reloader is
-  the entrypoint that starts Postfix and watches the mounted routing ConfigMap (see
-  [architecture.md](architecture.md)).
+- **postfix** is `FROM boky/postfix` (pinned via renovate) with the `reloader` binary baked in. The
+  image entrypoint runs the reloader as a background companion and hands off to the Postfix master,
+  so the reloader watches the mounted routing maps and runs postmap plus postfix reload on change
+  (see [architecture.md](architecture.md)).
 - All images are built `linux/amd64` + `linux/arm64` via QEMU + buildx and pushed as a
   multi-arch manifest list.
 
