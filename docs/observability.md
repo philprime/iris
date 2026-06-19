@@ -59,21 +59,25 @@ simply idle. (controller-runtime exports `leader_election_master_status` for tha
 
 ### Relay (go-health)
 
+The wiring lives in [`internal/relay/health.go`](../internal/relay/health.go):
+
 ```go
 eng := core.NewEngine("iris-relay", "Iris relay data plane", core.WithLogger(logger))
 
 // readyz — gates Service endpoints. Only things that block accepting SMTP.
-eng.RegisterReadyCheck(core.Check{Name: "config:loaded", Run: configLoadedCheck})
-eng.RegisterReadyCheck(core.Check{Name: "smtp:listener", Run: listenerBoundCheck})
+eng.RegisterReadinessCheck(core.Check{Name: "smtp:listener", Run: listenerBoundCheck})
 
 // healthz-only — informational. Downstream reachability is NOT a readiness gate:
 // Postfix queues + retries on a required-destination failure (see relay.md#delivery-contract),
 // so a flaky downstream must not drain the relay from the Service and stall all mail.
 for _, d := range destinations {
-    eng.RegisterCheck(destinationReachabilityCheck(d)) // HTTP: cheap GET/HEAD; SMTP: dial + NOOP
+    eng.RegisterHealthCheck(core.Check{Name: "destination:" + d.Name, Run: destinationReachable(d)})
 }
 
-healthhttp.Mount(adminMux, eng, healthhttp.Routes{Livez: "/livez", Readyz: "/readyz", Healthz: "/healthz"})
+// Mount per-endpoint handlers on the admin mux.
+mux.Handle("/livez", healthhttp.LivezHandler(eng))
+mux.Handle("/readyz", healthhttp.ReadyzHandler(eng))
+mux.Handle("/healthz", healthhttp.HealthzHandler(eng))
 ```
 
 Putting destination reachability on `/healthz` (not `/readyz`) is the same call `asm-relay` makes

@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
+	healthhttp "github.com/kula-app/go-health/adapters/http"
+	"github.com/kula-app/go-health/core"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"sigs.k8s.io/yaml"
 
@@ -70,7 +72,8 @@ func run(parent context.Context) error {
 	smtpServer.Domain = "iris-relay"
 	smtpServer.AllowInsecureAuth = true
 
-	adminServer := &http.Server{Addr: cfg.AdminAddr, Handler: adminMux(), ReadHeaderTimeout: 5 * time.Second}
+	healthEngine := relay.NewHealthEngine(cfg.SMTPAddr, targets, logger)
+	adminServer := &http.Server{Addr: cfg.AdminAddr, Handler: adminMux(healthEngine), ReadHeaderTimeout: 5 * time.Second}
 
 	errc := make(chan error, 2)
 	go func() {
@@ -103,12 +106,11 @@ func run(parent context.Context) error {
 	return nil
 }
 
-func adminMux() *http.ServeMux {
+func adminMux(eng *core.Engine) *http.ServeMux {
 	mux := http.NewServeMux()
-	ok := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
-	mux.HandleFunc("/livez", ok)
-	mux.HandleFunc("/readyz", ok)
-	mux.HandleFunc("/healthz", ok)
+	mux.Handle("/livez", healthhttp.LivezHandler(eng))
+	mux.Handle("/readyz", healthhttp.ReadyzHandler(eng))
+	mux.Handle("/healthz", healthhttp.HealthzHandler(eng))
 	mux.Handle("/metrics", promhttp.Handler())
 	return mux
 }

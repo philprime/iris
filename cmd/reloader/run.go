@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	healthhttp "github.com/kula-app/go-health/adapters/http"
+	"github.com/kula-app/go-health/core"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/philprime/iris/internal/config"
@@ -46,7 +48,7 @@ func run(parent context.Context) error {
 	logger, flush := observability.Setup(ctx, cfg.Sentry, terminal)
 	defer flush()
 
-	adminServer := &http.Server{Addr: cfg.AdminAddr, Handler: adminMux(), ReadHeaderTimeout: 5 * time.Second}
+	adminServer := &http.Server{Addr: cfg.AdminAddr, Handler: adminMux(newHealthEngine(logger)), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		logger.InfoContext(ctx, "starting reloader admin server", slog.String("addr", cfg.AdminAddr))
 		if err := adminServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -85,7 +87,9 @@ func run(parent context.Context) error {
 			}
 			logger.ErrorContext(ctx, "watch error", slog.Any("error", err))
 		case <-timer.C:
-			if err := reloadPostfix(ctx, cfg.WatchPath, execRunner); err != nil {
+			err := reload(ctx, cfg.WatchPath, execRunner)
+			lastReloadOK.Store(err == nil)
+			if err != nil {
 				logger.ErrorContext(ctx, "postfix reload failed", slog.Any("error", err))
 				continue
 			}
@@ -94,11 +98,10 @@ func run(parent context.Context) error {
 	}
 }
 
-func adminMux() *http.ServeMux {
+func adminMux(eng *core.Engine) *http.ServeMux {
 	mux := http.NewServeMux()
-	ok := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
-	mux.HandleFunc("/livez", ok)
-	mux.HandleFunc("/readyz", ok)
+	mux.Handle("/livez", healthhttp.LivezHandler(eng))
+	mux.Handle("/readyz", healthhttp.ReadyzHandler(eng))
 	mux.Handle("/metrics", promhttp.Handler())
 	return mux
 }
