@@ -25,10 +25,12 @@ Controller reconcilers are tested against a real Kubernetes API server (apiserve
 kubelet/scheduler) provided by `setup-envtest`. This validates CRD schemas, status/conditions,
 owner references, and finalizer behavior without a full cluster.
 
-- Binaries are fetched by `make setup-envtest`, and `make test` sets `KUBEBUILDER_ASSETS`.
-- Use these for the following. A `Relay` create makes a Deployment+Service appear. A conflicting
-  `Relay` is marked `Conflict=True` and not compiled. A delete makes the finalizer release the
-  route from the aggregate.
+- Binaries are fetched by `make setup-envtest`, and `make test` sets `KUBEBUILDER_ASSETS`. The
+  suite (`internal/controller`) skips itself when the assets are absent, so a bare `go test` still
+  runs the fake-client unit tests.
+- It covers the following. A `Relay` create makes a Deployment+Service+ConfigMap appear. A
+  conflicting `Relay` is marked `Conflict=True` and excluded from the aggregate. A delete makes the
+  finalizer release the route from the aggregate.
 
 ## End-to-end (kind)
 
