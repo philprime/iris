@@ -64,6 +64,7 @@ repos:
         language: system
         args:
           - "fmt"
+          - "--allow-no-files"
 
       - id: format-markdown
         name: Format Markdown
@@ -74,6 +75,7 @@ repos:
         language: system
         args:
           - "fmt"
+          - "--allow-no-files"
 
       - id: format-yaml
         name: Format YAML
@@ -84,3 +86,4 @@ repos:
         language: system
         args:
           - "fmt"
+          - "--allow-no-files"
