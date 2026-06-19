@@ -11,15 +11,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 )
-
-// hashedMaps are the Postfix map files that must be compiled with postmap.
-// relay_domains is a plain list and is not hashed.
-var hashedMaps = []string{"transport", "relay_recipient_maps"}
 
 // commandRunner runs an external command. It is a seam so the reload logic can
 // be tested without invoking postfix.
@@ -36,9 +30,9 @@ func execRunner(ctx context.Context, name string, args ...string) error {
 
 // reload runs a Postfix reload and records the iris_postfix_* metrics: the
 // attempt result, its latency, and the timestamp of the last success.
-func reload(ctx context.Context, dir string, run commandRunner) error {
+func reload(ctx context.Context, run commandRunner) error {
 	start := time.Now()
-	err := reloadPostfix(ctx, dir, run)
+	err := reloadPostfix(ctx, run)
 	reloadDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		reloadsTotal.WithLabelValues("failure").Inc()
@@ -49,18 +43,12 @@ func reload(ctx context.Context, dir string, run commandRunner) error {
 	return nil
 }
 
-// reloadPostfix compiles each present hashed map with postmap, then reloads
-// Postfix. A postmap failure aborts before the reload so the ingress is not
-// reloaded against a half-built map.
-func reloadPostfix(ctx context.Context, dir string, run commandRunner) error {
-	for _, name := range hashedMaps {
-		path := filepath.Join(dir, name)
-		if _, err := os.Stat(path); err != nil {
-			continue
-		}
-		if err := run(ctx, "postmap", path); err != nil {
-			return fmt.Errorf("postmap %s: %w", name, err)
-		}
+// reloadPostfix reloads Postfix so its daemons re-read the routing maps. The
+// maps are mounted as texthash files that Postfix reads directly, so no postmap
+// compilation step is needed (the ConfigMap mount is read-only anyway).
+func reloadPostfix(ctx context.Context, run commandRunner) error {
+	if err := run(ctx, "postfix", "reload"); err != nil {
+		return fmt.Errorf("postfix reload: %w", err)
 	}
-	return run(ctx, "postfix", "reload")
+	return nil
 }

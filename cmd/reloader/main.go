@@ -6,9 +6,9 @@ Licensed under the Functional Source License, Version 1.1, MIT Future License
 terms. SPDX-License-Identifier: FSL-1.1-MIT
 */
 
-// Command reloader watches the mounted Postfix routing maps and runs postmap
-// plus postfix reload when they change. It is baked into the Postfix image as
-// the entrypoint companion process.
+// Command reloader watches the mounted Postfix routing maps and runs postfix
+// reload when they change, so the daemons re-read the texthash maps. It is
+// baked into the Postfix image as the entrypoint companion process.
 package main
 
 import (

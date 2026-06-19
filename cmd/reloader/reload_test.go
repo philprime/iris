@@ -11,8 +11,6 @@ package main
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,63 +18,40 @@ import (
 )
 
 // Feature: postfix reload
-// Scenario: present maps are compiled before the reload
+// Scenario: a map change triggers a postfix reload
 //
-//	Given a maps directory with transport and relay_recipient_maps
+//	Given the maps are mounted as texthash files Postfix reads directly
 //	When  a reload runs
-//	Then  postmap runs for each map and postfix reload runs last
-func TestReloadPostfixCompilesThenReloads(t *testing.T) {
-	dir := t.TempDir()
-	mustWrite(t, filepath.Join(dir, "transport"), "x")
-	mustWrite(t, filepath.Join(dir, "relay_recipient_maps"), "y")
-
+//	Then  postfix reload runs so the daemons re-read the maps, with no postmap
+func TestReloadPostfixReloads(t *testing.T) {
 	var calls []string
 	runner := func(_ context.Context, name string, args ...string) error {
 		calls = append(calls, name+" "+strings.Join(args, " "))
 		return nil
 	}
 
-	if err := reloadPostfix(context.Background(), dir, runner); err != nil {
+	if err := reloadPostfix(context.Background(), runner); err != nil {
 		t.Fatalf("reload: %v", err)
 	}
 
-	if len(calls) != 3 {
-		t.Fatalf("calls = %v, want 3", calls)
-	}
-	if !strings.HasPrefix(calls[0], "postmap ") || !strings.HasPrefix(calls[1], "postmap ") {
-		t.Errorf("expected two postmap calls first, got %v", calls)
-	}
-	if calls[2] != "postfix reload" {
-		t.Errorf("last call = %q, want postfix reload", calls[2])
+	if len(calls) != 1 || calls[0] != "postfix reload" {
+		t.Fatalf("calls = %v, want [postfix reload]", calls)
 	}
 }
 
 // Feature: postfix reload
-// Scenario: a postmap failure aborts before the reload
+// Scenario: a reload failure is surfaced
 //
-//	Given postmap fails
+//	Given postfix reload fails
 //	When  a reload runs
-//	Then  postfix reload is not attempted, so the ingress keeps the old maps
-func TestReloadPostfixAbortsOnPostmapFailure(t *testing.T) {
-	dir := t.TempDir()
-	mustWrite(t, filepath.Join(dir, "transport"), "x")
-
-	var reloadCalled bool
-	runner := func(_ context.Context, name string, _ ...string) error {
-		if name == "postmap" {
-			return errors.New("boom")
-		}
-		if name == "postfix" {
-			reloadCalled = true
-		}
-		return nil
+//	Then  the error is returned so the failure is metered and logged
+func TestReloadPostfixReturnsError(t *testing.T) {
+	runner := func(_ context.Context, _ string, _ ...string) error {
+		return errors.New("boom")
 	}
 
-	if err := reloadPostfix(context.Background(), dir, runner); err == nil {
-		t.Error("expected error when postmap fails")
-	}
-	if reloadCalled {
-		t.Error("postfix reload should not run after a postmap failure")
+	if err := reloadPostfix(context.Background(), runner); err == nil {
+		t.Error("expected error when postfix reload fails")
 	}
 }
 
@@ -88,11 +63,9 @@ func TestReloadPostfixAbortsOnPostmapFailure(t *testing.T) {
 //	Then  the matching iris_postfix_reloads_total series increments
 func TestReloadRecordsMetrics(t *testing.T) {
 	reloadsTotal.Reset()
-	dir := t.TempDir()
-	mustWrite(t, filepath.Join(dir, "transport"), "x")
 
 	okRunner := func(_ context.Context, _ string, _ ...string) error { return nil }
-	if err := reload(context.Background(), dir, okRunner); err != nil {
+	if err := reload(context.Background(), okRunner); err != nil {
 		t.Fatalf("reload: %v", err)
 	}
 	if got := testutil.ToFloat64(reloadsTotal.WithLabelValues("success")); got != 1 {
@@ -100,17 +73,10 @@ func TestReloadRecordsMetrics(t *testing.T) {
 	}
 
 	failRunner := func(_ context.Context, _ string, _ ...string) error { return errors.New("boom") }
-	if err := reload(context.Background(), dir, failRunner); err == nil {
+	if err := reload(context.Background(), failRunner); err == nil {
 		t.Error("expected reload error")
 	}
 	if got := testutil.ToFloat64(reloadsTotal.WithLabelValues("failure")); got != 1 {
 		t.Errorf("failure reloads = %v, want 1", got)
-	}
-}
-
-func mustWrite(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("write: %v", err)
 	}
 }

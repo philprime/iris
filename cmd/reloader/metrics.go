@@ -15,7 +15,7 @@ import "github.com/prometheus/client_golang/prometheus"
 var (
 	reloadsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "iris", Subsystem: "postfix", Name: "reloads_total",
-		Help: "postmap and reload attempts by result.",
+		Help: "postfix reload attempts by result.",
 	}, []string{"result"})
 
 	reloadDuration = prometheus.NewHistogram(prometheus.HistogramOpts{

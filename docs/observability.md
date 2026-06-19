@@ -87,8 +87,8 @@ exists.
 ### Reloader
 
 - `/livez`: process alive (`system:time` heartbeat only).
-- `/readyz`: Postfix master reachable (`postfix status`) **and** the last `postmap` + `postfix
-  reload` succeeded. A failed reload means the ingress is serving stale routes, which should drain
+- `/readyz`: Postfix master reachable (`postfix status`) **and** the last `postfix reload`
+  succeeded. A failed reload means the ingress is serving stale routes, which should drain
   the replica.
 
 ## Metrics
@@ -154,11 +154,11 @@ what drives the SMTP 4xx → Postfix-retry path.
 
 ### Reloader
 
-| Metric                                              | Type      | Labels   | Meaning                                           |
-| --------------------------------------------------- | --------- | -------- | ------------------------------------------------- |
-| `iris_postfix_reloads_total`                        | Counter   | `result` | `postmap`+`reload` attempts (`success`/`failure`) |
-| `iris_postfix_reload_duration_seconds`              | Histogram | —        | Reload latency                                    |
-| `iris_postfix_config_last_reload_timestamp_seconds` | Gauge     | —        | Unix time of the last successful reload           |
+| Metric                                              | Type      | Labels   | Meaning                                         |
+| --------------------------------------------------- | --------- | -------- | ----------------------------------------------- |
+| `iris_postfix_reloads_total`                        | Counter   | `result` | `postfix reload` attempts (`success`/`failure`) |
+| `iris_postfix_reload_duration_seconds`              | Histogram | —        | Reload latency                                  |
+| `iris_postfix_config_last_reload_timestamp_seconds` | Gauge     | —        | Unix time of the last successful reload         |
 
 > **Postfix MTA metrics** (queue depth, bounce/defer rates) are **not** in v1, because `boky/postfix`
 > exposes no Prometheus endpoint. A `postfix_exporter` sidecar is a possible future addition.
@@ -229,7 +229,7 @@ Capture **unexpected** failures, never routine protocol outcomes:
 - **Relay**: capture transform/Jsonnet evaluation errors and recovered panics in an SMTP session.
   **Do not** capture filter rejections or `required`-destination 4xx: those are expected,
   documented outcomes already covered by metrics ([relay.md](relay.md#delivery-contract)).
-- **Reloader**: capture `postmap`/`postfix reload` failures (a stale ingress is a real incident).
+- **Reloader**: capture `postfix reload` failures (a stale ingress is a real incident).
 
 `BeforeSend` is the central kill-switch for anything noisy that slips through. `TracesSampler`
 returns `0.0` for probe/metrics spans so health traffic doesn't drown the trace quota.

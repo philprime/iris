@@ -17,7 +17,7 @@ import (
 	"github.com/kula-app/go-health/core"
 )
 
-// lastReloadOK records whether the most recent postmap+reload succeeded. A
+// lastReloadOK records whether the most recent postfix reload succeeded. A
 // failed reload means the ingress is serving stale routes, which should drain
 // the replica. It starts true since no reload has been attempted yet.
 var lastReloadOK atomic.Bool

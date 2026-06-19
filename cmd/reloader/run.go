@@ -87,7 +87,7 @@ func run(parent context.Context) error {
 			}
 			logger.ErrorContext(ctx, "watch error", slog.Any("error", err))
 		case <-timer.C:
-			err := reload(ctx, cfg.WatchPath, execRunner)
+			err := reload(ctx, execRunner)
 			lastReloadOK.Store(err == nil)
 			if err != nil {
 				logger.ErrorContext(ctx, "postfix reload failed", slog.Any("error", err))

@@ -22,9 +22,9 @@ GitHub App for automated cross-repo PRs).
   The `sentryRelease` is the unified Sentry release identifier (see
   [observability.md](observability.md#release-identifier)). Runs as `nonroot:nonroot`.
 - **postfix** is `FROM boky/postfix` (pinned via renovate) with the `reloader` binary baked in. The
-  image entrypoint runs the reloader as a background companion and hands off to the Postfix master,
-  so the reloader watches the mounted routing maps and runs postmap plus postfix reload on change
-  (see [architecture.md](architecture.md)).
+  image entrypoint points Postfix at the mounted routing maps, runs the reloader as a background
+  companion, and hands off to the Postfix master, so the reloader watches the maps and runs postfix
+  reload on change (see [architecture.md](architecture.md)).
 - All images are built `linux/amd64` + `linux/arm64` via QEMU + buildx and pushed as a
   multi-arch manifest list.
 
