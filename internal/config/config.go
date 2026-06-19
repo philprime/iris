@@ -59,7 +59,13 @@ type Relay struct {
 
 // Reloader holds the Postfix reloader's settings.
 type Reloader struct {
-	WatchPath string `env:"IRIS_RELOADER_WATCH_PATH" envDefault:"/etc/postfix/maps" validate:"required"`
+	// SourcePath is the read-only mount of the controller-rendered maps
+	// ConfigMap. It is watched for changes.
+	SourcePath string `env:"IRIS_RELOADER_SOURCE_PATH" envDefault:"/etc/postfix/maps-src" validate:"required"`
+	// WorkPath is the writable directory Postfix reads. The reloader copies the
+	// source maps here and compiles them, since postmap cannot write next to the
+	// read-only ConfigMap mount.
+	WorkPath  string `env:"IRIS_RELOADER_WORK_PATH" envDefault:"/etc/postfix/maps" validate:"required"`
 	AdminAddr string `env:"IRIS_RELOADER_ADMIN_ADDR" envDefault:":8080" validate:"required"`
 	Sentry    Sentry
 }

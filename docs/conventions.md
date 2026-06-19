@@ -16,7 +16,7 @@ iris/
 ├── cmd/
 │   ├── controller/{main,run}.go   # manager: reconcilers + webhook + leader election
 │   ├── relay/{main,run}.go        # go-smtp data-plane server
-│   └── reloader/{main,run}.go     # file-watch → postfix reload (baked into postfix image)
+│   └── reloader/{main,run}.go     # file-watch → copy + postmap + reload (baked into postfix image)
 ├── internal/
 │   ├── controller/         # relay_controller.go, config_controller.go
 │   ├── postfix/            # render transport / relay_domains / relay_recipient_maps (+ tests)

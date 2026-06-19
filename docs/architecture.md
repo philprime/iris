@@ -18,11 +18,11 @@ replicated for throughput.
    CRs.
 
 3. **Postfix image + in-container reloader**. A custom image `FROM boky/postfix` with a small
-   reloader process (`cmd/reloader`) that watches the mounted routing maps (inotify) and runs
-   `postfix reload` on change so the daemons re-read them. The maps are consumed as `texthash`,
-   which Postfix reads directly from the read-only ConfigMap mount, so no `postmap` step is needed.
-   The image entrypoint points Postfix at the maps and runs the reloader as a background companion
-   to the Postfix master. A separate sidecar is **not** used because it cannot cleanly
+   reloader process (`cmd/reloader`) that watches the mounted routing maps (inotify), copies them
+   into a writable work directory, compiles them with `postmap`, and runs `postfix reload` on
+   change. The copy is needed because the ConfigMap mount is read-only and `postmap` writes its
+   compiled database next to the source file. The image entrypoint seeds the work directory, points
+   Postfix at it, and runs the reloader as a background companion to the Postfix master. A separate sidecar is **not** used because it cannot cleanly
    signal another container's Postfix master (separate process namespaces, shared queue/spool
    issues).
 

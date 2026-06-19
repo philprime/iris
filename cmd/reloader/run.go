@@ -62,12 +62,12 @@ func run(parent context.Context) error {
 		return fmt.Errorf("create watcher: %w", err)
 	}
 	defer watcher.Close()
-	if err := watcher.Add(cfg.WatchPath); err != nil {
-		return fmt.Errorf("watch %s: %w", cfg.WatchPath, err)
+	if err := watcher.Add(cfg.SourcePath); err != nil {
+		return fmt.Errorf("watch %s: %w", cfg.SourcePath, err)
 	}
 
 	logger.InfoContext(ctx, "watching postfix maps",
-		slog.String("path", cfg.WatchPath),
+		slog.String("source", cfg.SourcePath), slog.String("work", cfg.WorkPath),
 		slog.String("version", version), slog.String("commit", commit), slog.String("buildDate", date))
 
 	timer := time.NewTimer(debounce)
@@ -87,7 +87,7 @@ func run(parent context.Context) error {
 			}
 			logger.ErrorContext(ctx, "watch error", slog.Any("error", err))
 		case <-timer.C:
-			err := reload(ctx, execRunner)
+			err := reload(ctx, cfg.SourcePath, cfg.WorkPath, execRunner)
 			lastReloadOK.Store(err == nil)
 			if err != nil {
 				logger.ErrorContext(ctx, "postfix reload failed", slog.Any("error", err))

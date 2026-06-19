@@ -11,9 +11,19 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
+
+// hashedMaps are the Postfix map files compiled with postmap. relay_domains is
+// a plain list and is only copied, not hashed.
+var hashedMaps = []string{"transport", "relay_recipient_maps"}
+
+// copiedMaps are every map file synced from the read-only source mount into the
+// writable work directory Postfix reads.
+var copiedMaps = []string{"transport", "relay_recipient_maps", "relay_domains"}
 
 // commandRunner runs an external command. It is a seam so the reload logic can
 // be tested without invoking postfix.
@@ -30,9 +40,9 @@ func execRunner(ctx context.Context, name string, args ...string) error {
 
 // reload runs a Postfix reload and records the iris_postfix_* metrics: the
 // attempt result, its latency, and the timestamp of the last success.
-func reload(ctx context.Context, run commandRunner) error {
+func reload(ctx context.Context, sourceDir, workDir string, run commandRunner) error {
 	start := time.Now()
-	err := reloadPostfix(ctx, run)
+	err := reloadPostfix(ctx, sourceDir, workDir, run)
 	reloadDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		reloadsTotal.WithLabelValues("failure").Inc()
@@ -43,12 +53,42 @@ func reload(ctx context.Context, run commandRunner) error {
 	return nil
 }
 
-// reloadPostfix reloads Postfix so its daemons re-read the routing maps. The
-// maps are mounted as texthash files that Postfix reads directly, so no postmap
-// compilation step is needed (the ConfigMap mount is read-only anyway).
-func reloadPostfix(ctx context.Context, run commandRunner) error {
-	if err := run(ctx, "postfix", "reload"); err != nil {
-		return fmt.Errorf("postfix reload: %w", err)
+// reloadPostfix syncs the maps from the read-only source mount into the writable
+// work directory, compiles each hashed map with postmap, then reloads Postfix.
+// The copy is needed because postmap writes its compiled database next to the
+// source file, which the read-only ConfigMap mount forbids. A postmap failure
+// aborts before the reload so the ingress is not reloaded against a half-built
+// map.
+func reloadPostfix(ctx context.Context, sourceDir, workDir string, run commandRunner) error {
+	if err := syncMaps(sourceDir, workDir); err != nil {
+		return fmt.Errorf("sync maps: %w", err)
+	}
+	for _, name := range hashedMaps {
+		path := filepath.Join(workDir, name)
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		if err := run(ctx, "postmap", path); err != nil {
+			return fmt.Errorf("postmap %s: %w", name, err)
+		}
+	}
+	return run(ctx, "postfix", "reload")
+}
+
+// syncMaps copies each present map from the source mount into the work
+// directory, so the compiled databases land on a writable filesystem.
+func syncMaps(sourceDir, workDir string) error {
+	for _, name := range copiedMaps {
+		data, err := os.ReadFile(filepath.Join(sourceDir, name))
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return fmt.Errorf("read %s: %w", name, err)
+		}
+		if err := os.WriteFile(filepath.Join(workDir, name), data, 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", name, err)
+		}
 	}
 	return nil
 }

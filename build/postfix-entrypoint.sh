@@ -4,17 +4,27 @@
 # in the background, then hands off to the boky/postfix entrypoint which runs
 # the Postfix master in the foreground as the container's main process.
 #
-# The maps are consumed as texthash, which Postfix reads directly from the
-# read-only ConfigMap mount. No postmap compilation is needed (and it could not
-# write a .db next to a read-only file anyway). The reloader runs postfix reload
-# on change so the daemons re-read the maps. relay_domains is a plain list, so
-# it is referenced as a file whose lines Postfix substitutes in.
+# boky/postfix compiles every referenced map with postmap at startup, which
+# writes a database next to the source file. The ConfigMap mount is read-only,
+# so the maps are first copied into a writable work directory and Postfix reads
+# the compiled (lmdb) maps from there. The reloader keeps the work copy in sync
+# and recompiles on change. relay_domains is a plain list, so it is referenced
+# as a file whose lines Postfix substitutes in.
 set -eu
 
+src_dir="${IRIS_POSTFIX_MAPS_SRC_DIR:-/etc/postfix/maps-src}"
 maps_dir="${IRIS_POSTFIX_MAPS_DIR:-/etc/postfix/maps}"
 
-postconf -e "transport_maps=texthash:${maps_dir}/transport"
-postconf -e "relay_recipient_maps=texthash:${maps_dir}/relay_recipient_maps"
+# Seed the writable work directory so the maps exist before boky compiles them.
+mkdir -p "$maps_dir"
+for name in transport relay_recipient_maps relay_domains; do
+	if [ -f "${src_dir}/${name}" ]; then
+		cp -fL "${src_dir}/${name}" "${maps_dir}/${name}"
+	fi
+done
+
+postconf -e "transport_maps=lmdb:${maps_dir}/transport"
+postconf -e "relay_recipient_maps=lmdb:${maps_dir}/relay_recipient_maps"
 postconf -e "relay_domains=${maps_dir}/relay_domains"
 
 # Enable opportunistic STARTTLS when a serving certificate is mounted. The

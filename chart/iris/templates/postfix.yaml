@@ -85,7 +85,14 @@ spec:
           image: {{ include "iris.postfix.image" . }}
           imagePullPolicy: {{ .Values.postfix.image.pullPolicy }}
           env:
-            - name: IRIS_RELOADER_WATCH_PATH
+            # boky/postfix refuses to start without a sender-domain policy. Iris
+            # gates senders in the relay data plane, not at the ingress, so allow
+            # an empty list here and accept inbound mail via the routing maps.
+            - name: ALLOW_EMPTY_SENDER_DOMAINS
+              value: "true"
+            - name: IRIS_RELOADER_SOURCE_PATH
+              value: /etc/postfix/maps-src
+            - name: IRIS_RELOADER_WORK_PATH
               value: /etc/postfix/maps
             - name: IRIS_RELOADER_ADMIN_ADDR
               value: ":8080"
@@ -106,18 +113,24 @@ spec:
           resources:
             {{- toYaml .Values.postfix.resources | nindent 12 }}
           volumeMounts:
-            - name: maps
-              mountPath: /etc/postfix/maps
+            - name: maps-src
+              mountPath: /etc/postfix/maps-src
               readOnly: true
+            - name: maps-work
+              mountPath: /etc/postfix/maps
             {{- if .Values.postfix.tls.enabled }}
             - name: tls
               mountPath: /etc/postfix/tls
               readOnly: true
             {{- end }}
       volumes:
-        - name: maps
+        - name: maps-src
           configMap:
             name: {{ include "iris.postfixMapsConfigMap" . }}
+        # maps-work is the writable copy Postfix compiles and reads, since the
+        # ConfigMap mount above is read-only and postmap must write a database.
+        - name: maps-work
+          emptyDir: {}
         {{- if .Values.postfix.tls.enabled }}
         - name: tls
           secret:
