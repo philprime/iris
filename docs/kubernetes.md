@@ -118,3 +118,9 @@ election, and events. Relay pods need **no** Kubernetes API access.
 ServiceMonitor + PDB, mirroring the ingress-nginx chart layout. The configurable values (controller
 and Postfix replicas and resources, exposure `mode`, images, webhook cert-manager settings) live in
 [`chart/iris/values.yaml`](../chart/iris/values.yaml).
+
+Opportunistic STARTTLS on the public SMTP ports (25/587/465) is gated on `postfix.tls.enabled`.
+When on, cert-manager provisions the serving certificate the same way as the webhook (a self-signed
+Issuer by default, or `postfix.tls.certManager.issuerRef` for a real one), the secret is mounted
+into the Postfix pod, and the image entrypoint enables TLS at level `may`. Senders that do not offer
+TLS still deliver in plaintext.

@@ -426,11 +426,13 @@ chart-lint:
 	end_group
 
 ## Render the Helm chart templates to stdout for inspection
+## Optional: SET=key=value,key2=value2 to override values
 .PHONY: chart-template
 chart-template:
 	@set -eu; $(LOG); \
 	begin_group "helm template"; \
-	helm template iris chart/iris; \
+	args=""; [ -z "$(SET)" ] || args="--set $(SET)"; \
+	helm template iris chart/iris $$args; \
 	end_group
 
 ## Package the Helm chart into dist/

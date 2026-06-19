@@ -67,6 +67,11 @@ app.kubernetes.io/component: postfix
 {{- printf "%s-webhook" (include "iris.fullname" .) -}}
 {{- end -}}
 
+{{/* Secret cert-manager fills with the Postfix STARTTLS serving certificate. */}}
+{{- define "iris.postfixTLSSecret" -}}
+{{- .Values.postfix.tls.secretName | default (printf "%s-postfix-tls" (include "iris.fullname" .)) -}}
+{{- end -}}
+
 {{/* Sentry env block, included by each component's container. */}}
 {{- define "iris.sentryEnv" -}}
 - name: IRIS_SENTRY_ENABLED

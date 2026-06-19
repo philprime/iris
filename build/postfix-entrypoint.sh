@@ -17,6 +17,26 @@ postconf -e "transport_maps=texthash:${maps_dir}/transport"
 postconf -e "relay_recipient_maps=texthash:${maps_dir}/relay_recipient_maps"
 postconf -e "relay_domains=${maps_dir}/relay_domains"
 
+# Enable opportunistic STARTTLS when a serving certificate is mounted. The
+# secret cert-manager fills holds tls.crt and tls.key. Opportunistic level
+# "may" keeps plaintext working for senders that do not offer TLS. The
+# submission (587) and smtps (465) services are defined so the exposed ports
+# serve TLS too; 465 uses wrapper mode (implicit TLS).
+tls_dir="${IRIS_POSTFIX_TLS_DIR:-}"
+if [ -n "$tls_dir" ] && [ -f "${tls_dir}/tls.crt" ] && [ -f "${tls_dir}/tls.key" ]; then
+	postconf -e "smtpd_tls_cert_file=${tls_dir}/tls.crt"
+	postconf -e "smtpd_tls_key_file=${tls_dir}/tls.key"
+	postconf -e "smtpd_tls_security_level=may"
+	postconf -e "smtpd_tls_loglevel=1"
+
+	postconf -M "submission/inet=submission inet n - n - - smtpd"
+	postconf -P "submission/inet/smtpd_tls_security_level=may"
+
+	postconf -M "smtps/inet=smtps inet n - n - - smtpd"
+	postconf -P "smtps/inet/smtpd_tls_wrappermode=yes"
+	postconf -P "smtps/inet/smtpd_tls_security_level=encrypt"
+fi
+
 /usr/local/bin/iris-reloader &
 
 exec /scripts/run.sh "$@"

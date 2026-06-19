@@ -18,6 +18,45 @@ data:
   transport: ""
   relay_domains: ""
   relay_recipient_maps: ""
+{{- if and .Values.postfix.tls.enabled .Values.postfix.tls.certManager.enabled }}
+{{- if not .Values.postfix.tls.certManager.issuerRef }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "iris.fullname" . }}-postfix-selfsigned
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postfix
+spec:
+  selfSigned: {}
+{{- end }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "iris.fullname" . }}-postfix
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postfix
+spec:
+  secretName: {{ include "iris.postfixTLSSecret" . }}
+  dnsNames:
+    - {{ include "iris.fullname" . }}-postfix.{{ .Release.Namespace }}.svc
+    - {{ include "iris.fullname" . }}-postfix.{{ .Release.Namespace }}.svc.cluster.local
+    {{- range .Values.postfix.tls.dnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+  issuerRef:
+    {{- if .Values.postfix.tls.certManager.issuerRef }}
+    {{- toYaml .Values.postfix.tls.certManager.issuerRef | nindent 4 }}
+    {{- else }}
+    name: {{ include "iris.fullname" . }}-postfix-selfsigned
+    kind: Issuer
+    {{- end }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -50,6 +89,10 @@ spec:
               value: /etc/postfix/maps
             - name: IRIS_RELOADER_ADMIN_ADDR
               value: ":8080"
+            {{- if .Values.postfix.tls.enabled }}
+            - name: IRIS_POSTFIX_TLS_DIR
+              value: /etc/postfix/tls
+            {{- end }}
             {{- include "iris.sentryEnv" . | nindent 12 }}
           ports:
             - name: smtp
@@ -66,10 +109,20 @@ spec:
             - name: maps
               mountPath: /etc/postfix/maps
               readOnly: true
+            {{- if .Values.postfix.tls.enabled }}
+            - name: tls
+              mountPath: /etc/postfix/tls
+              readOnly: true
+            {{- end }}
       volumes:
         - name: maps
           configMap:
             name: {{ include "iris.postfixMapsConfigMap" . }}
+        {{- if .Values.postfix.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ include "iris.postfixTLSSecret" . }}
+        {{- end }}
 {{- if ne .Values.exposure.mode "none" }}
 ---
 apiVersion: v1

@@ -40,6 +40,26 @@ postfix:
     limits:
       cpu: 500m
       memory: 256Mi
+  # tls provisions a serving certificate for opportunistic STARTTLS on the
+  # public SMTP listeners (25/587/465). When disabled, Postfix serves
+  # plaintext only.
+  tls:
+    enabled: false
+    # dnsNames are extra certificate SANs (the public MX hostname). The
+    # in-cluster Postfix Service DNS name is always included. For opportunistic
+    # STARTTLS senders do not verify the certificate, so a self-signed
+    # certificate over the Service name is sufficient.
+    dnsNames: []
+    # secretName overrides the TLS secret name. Defaults to
+    # <fullname>-postfix-tls.
+    secretName: ""
+    # certManager provisions the serving certificate. When disabled, supply the
+    # secret named above another way (it must hold tls.crt and tls.key).
+    certManager:
+      enabled: true
+      # issuerRef references an existing Issuer/ClusterIssuer. When empty a
+      # self-signed Issuer is created in the release namespace.
+      issuerRef: {}
 
 # exposure controls how the Postfix ingress is published.
 exposure:
