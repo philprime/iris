@@ -96,3 +96,25 @@ func LogrFromSlog(logger *slog.Logger) logr.Logger {
 func ReleaseID(version, gitSHA string) string {
 	return fmt.Sprintf("iris@%s:%s", version, gitSHA)
 }
+
+// CaptureError reports an error to Sentry with the given tags attached to a
+// fresh scope, following the philprime house style: prefer the context-scoped
+// hub, fall back to the current hub, and attach context on a WithScope closure
+// so tags never leak across concurrent reconciles. It is a no-op when Sentry is
+// not initialized. Callers should capture only unexpected (terminal) errors,
+// not routine retries.
+func CaptureError(ctx context.Context, err error, tags map[string]string) {
+	if err == nil {
+		return
+	}
+	hub := sentry.GetHubFromContext(ctx)
+	if hub == nil {
+		hub = sentry.CurrentHub()
+	}
+	hub.WithScope(func(scope *sentry.Scope) {
+		for key, value := range tags {
+			scope.SetTag(key, value)
+		}
+		hub.CaptureException(err)
+	})
+}

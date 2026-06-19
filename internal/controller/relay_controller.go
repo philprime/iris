@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/philprime/iris/api/v1alpha1"
+	"github.com/philprime/iris/internal/observability"
 	"github.com/philprime/iris/internal/relay"
 )
 
@@ -98,21 +99,58 @@ func (r *RelayReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	}
 
 	if err := r.reconcileConfigMap(ctx, &rel); err != nil {
-		return reconcile.Result{}, err
+		return r.handleReconcileError(ctx, &rel, err)
 	}
 	if err := r.reconcileService(ctx, &rel); err != nil {
-		return reconcile.Result{}, err
+		return r.handleReconcileError(ctx, &rel, err)
 	}
 	dep, err := r.reconcileDeployment(ctx, &rel)
 	if err != nil {
-		return reconcile.Result{}, err
+		return r.handleReconcileError(ctx, &rel, err)
 	}
 
 	if err := r.updateStatus(ctx, &rel, dep); err != nil {
-		return reconcile.Result{}, err
+		return r.handleReconcileError(ctx, &rel, err)
 	}
 
 	return reconcile.Result{}, nil
+}
+
+// handleReconcileError classifies a reconcile failure. A transient error is
+// returned so the controller requeues with backoff. A terminal error is
+// reported to Sentry, recorded as Ready=False, and not requeued.
+func (r *RelayReconciler) handleReconcileError(ctx context.Context, rel *v1alpha1.Relay, err error) (reconcile.Result, error) {
+	if !isTerminal(err) {
+		return reconcile.Result{}, err
+	}
+	observability.CaptureError(ctx, err, map[string]string{
+		"relay.namespace": rel.Namespace,
+		"relay.name":      rel.Name,
+	})
+	if markErr := r.markNotReady(ctx, rel, "ReconcileError", err.Error()); markErr != nil {
+		return reconcile.Result{}, markErr
+	}
+	return reconcile.Result{}, nil
+}
+
+// markNotReady records a terminal failure as Ready=False on the relay's status.
+func (r *RelayReconciler) markNotReady(ctx context.Context, rel *v1alpha1.Relay, reason, message string) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var current v1alpha1.Relay
+		if err := r.Get(ctx, client.ObjectKeyFromObject(rel), &current); err != nil {
+			return err
+		}
+		original := current.DeepCopy()
+		current.Status.ObservedGeneration = current.Generation
+		apimeta.SetStatusCondition(&current.Status.Conditions, metav1.Condition{
+			Type:               conditionReady,
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: current.Generation,
+			Reason:             reason,
+			Message:            message,
+		})
+		return r.Status().Patch(ctx, &current, client.MergeFromWithOptions(original, client.MergeFromWithOptimisticLock{}))
+	})
 }
 
 // reconcileDelete releases the finalizer so the API server can complete the
@@ -133,7 +171,8 @@ func (r *RelayReconciler) reconcileDelete(ctx context.Context, rel *v1alpha1.Rel
 func (r *RelayReconciler) reconcileConfigMap(ctx context.Context, rel *v1alpha1.Relay) error {
 	rendered, err := relay.RenderConfig(rel)
 	if err != nil {
-		return fmt.Errorf("render relay config: %w", err)
+		// A bad spec cannot be fixed by retrying, so this is terminal.
+		return terminal(fmt.Errorf("render relay config: %w", err))
 	}
 	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: configMapName(rel.Name), Namespace: rel.Namespace}}
 	return r.apply(ctx, rel, cm, func() error {
