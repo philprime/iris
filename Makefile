@@ -153,6 +153,9 @@ manifests:
 	log_info "Syncing CRDs into chart/iris/crds..."; \
 	mkdir -p chart/iris/crds; \
 	cp config/crd/bases/*.yaml chart/iris/crds/; \
+	log_info "Syncing RBAC rules into chart/iris/rbac..."; \
+	mkdir -p chart/iris/rbac; \
+	cp config/rbac/role.yaml chart/iris/rbac/role.yaml; \
 	end_group
 
 ## Generate CRD reference docs from api/v1alpha1
@@ -186,7 +189,7 @@ verify-generate: generate
 	if git diff --exit-code -- \
 		api/v1alpha1/zz_generated.deepcopy.go \
 		config/crd config/rbac config/webhook \
-		chart/iris/crds docs/crd-reference.md; then \
+		chart/iris/crds chart/iris/rbac docs/crd-reference.md; then \
 		end_group; \
 		log_notice "Generated files are up to date."; \
 	else \
@@ -419,6 +422,14 @@ chart-lint:
 	@set -eu; $(LOG); \
 	begin_group "helm lint"; \
 	helm lint chart/iris; \
+	end_group
+
+## Render the Helm chart templates to stdout for inspection
+.PHONY: chart-template
+chart-template:
+	@set -eu; $(LOG); \
+	begin_group "helm template"; \
+	helm template iris chart/iris; \
 	end_group
 
 ## Package the Helm chart into dist/
