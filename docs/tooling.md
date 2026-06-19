@@ -58,9 +58,10 @@ rule: error strings must start lowercase (see [conventions.md](conventions.md)).
 
 ## pre-commit
 
-`.pre-commit-config.yaml` runs three layers of hooks on commit: housekeeping (whitespace,
-merge-conflict, private-key, GitHub Actions/workflow schema, `shellcheck`), `make analyze`, and the
-`gofmt`/`dprint` formatters. See the file for the exact set.
+`.pre-commit-config.yaml` runs hooks on commit: housekeeping (whitespace, merge-conflict,
+private-key, GitHub Actions/workflow schema, `shellcheck`), `make analyze`, a codegen-freshness
+check (`make verify-generate`, scoped to commits that touch the API types or reconciler/webhook
+markers), and the `gofmt`/`dprint` formatters. See the file for the exact set.
 
 `make init` installs the git hook (via `make setup-hooks`, which runs `pre-commit install`). Run
 `make setup-hooks` directly if you skipped `init`. Run `make format` before committing so the format

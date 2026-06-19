@@ -174,6 +174,27 @@ generate-crd-docs:
 	end_group
 	@$(MAKE) format
 
+## Verify the generated files are up to date (regenerates, then fails on any diff)
+#
+# Runs the full codegen and fails if it changes any tracked generated artifact.
+# Used by the pre-commit hook and suitable for CI. The diff is scoped to the
+# generated set so a stale commit is reported as codegen drift, not formatting.
+.PHONY: verify-generate
+verify-generate: generate
+	@set -eu; $(LOG); \
+	begin_group "verify-generate"; \
+	if git diff --exit-code -- \
+		api/v1alpha1/zz_generated.deepcopy.go \
+		config/crd config/rbac config/webhook \
+		chart/iris/crds docs/crd-reference.md; then \
+		end_group; \
+		log_notice "Generated files are up to date."; \
+	else \
+		log_error "Generated files are stale. Run 'make generate' and stage the result."; \
+		end_group; \
+		exit 1; \
+	fi
+
 # ============================================================================
 # BUILDING
 # ============================================================================

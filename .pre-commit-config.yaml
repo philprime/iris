@@ -34,6 +34,17 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      - id: verify-generate
+        name: Codegen up-to-date
+        description: "Run make verify-generate when API types or markers change"
+        entry: make
+        language: system
+        args:
+          - "verify-generate"
+        pass_filenames: false
+        files: ^(api/|internal/controller/|internal/webhook/).*\.go$
+        stages: [pre-commit]
+
       - id: format-go
         name: Format Go
         description: "Format Go"
