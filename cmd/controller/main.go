@@ -16,6 +16,15 @@ import (
 	"os"
 )
 
+// Build metadata, injected at build time via -ldflags. sentryRelease is the
+// unified philprime release identifier (see docs/distribution.md).
+var (
+	version       = "dev"
+	commit        = "none"
+	date          = "unknown"
+	sentryRelease = ""
+)
+
 func main() {
 	if err := run(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "controller exited with error: %s\n", err)

@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/philprime/iris/api/v1alpha1"
+	"github.com/philprime/iris/internal/metrics"
 	"github.com/philprime/iris/internal/postfix"
 )
 
@@ -85,12 +87,20 @@ func (r *ConfigReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (
 
 	maps, conflicts, err := postfix.Render(relays.Items, r.RenderOptions)
 	if err != nil {
+		metrics.PostfixConfigRenders.WithLabelValues("error").Inc()
 		return reconcile.Result{}, fmt.Errorf("render postfix maps: %w", err)
 	}
 
-	if err := r.writeConfigMap(ctx, maps); err != nil {
+	result, resourceVersion, err := r.writeConfigMap(ctx, maps)
+	if err != nil {
+		metrics.PostfixConfigRenders.WithLabelValues("error").Inc()
 		return reconcile.Result{}, err
 	}
+	metrics.PostfixConfigRenders.WithLabelValues(result).Inc()
+	if gen, perr := strconv.ParseFloat(resourceVersion, 64); perr == nil {
+		metrics.PostfixConfigGeneration.Set(gen)
+	}
+	metrics.RouteConflicts.Set(float64(len(conflicts)))
 
 	// Index the lost route keys per relay so each relay's status reflects only
 	// the routes it actually claimed.
@@ -110,12 +120,44 @@ func (r *ConfigReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (
 		}
 	}
 
+	recordRelayPhases(relays.Items, lost)
+
 	return reconcile.Result{}, nil
 }
 
+// recordRelayPhases sets the iris_relays gauge to the count of relays in each
+// phase (ready, conflict, programming), clearing stale series first.
+func recordRelayPhases(relays []v1alpha1.Relay, lost map[types.NamespacedName]map[string]struct{}) {
+	metrics.Relays.Reset()
+	counts := map[string]int{}
+	for i := range relays {
+		relay := &relays[i]
+		nn := types.NamespacedName{Namespace: relay.Namespace, Name: relay.Name}
+		counts[relayPhase(relay, lost[nn])]++
+	}
+	for phase, n := range counts {
+		metrics.Relays.WithLabelValues(phase).Set(float64(n))
+	}
+}
+
+// relayPhase classifies a relay for the iris_relays gauge: conflict when it
+// lost a route, ready when it is programmed and its Deployment is available,
+// otherwise programming.
+func relayPhase(relay *v1alpha1.Relay, lost map[string]struct{}) string {
+	if len(lost) > 0 {
+		return "conflict"
+	}
+	claimed := claimedRoutes(relay, lost)
+	if len(claimed) > 0 && apimeta.IsStatusConditionTrue(relay.Status.Conditions, conditionDeploymentAvailable) {
+		return "ready"
+	}
+	return "programming"
+}
+
 // writeConfigMap creates or updates the aggregate Postfix maps ConfigMap,
-// skipping the write when the rendered data is unchanged.
-func (r *ConfigReconciler) writeConfigMap(ctx context.Context, maps postfix.Maps) error {
+// skipping the write when the rendered data is unchanged. It returns the render
+// result ("written" or "nochange") and the ConfigMap's resource version.
+func (r *ConfigReconciler) writeConfigMap(ctx context.Context, maps postfix.Maps) (string, string, error) {
 	data := map[string]string{
 		keyTransport:       maps.Transport,
 		keyRelayDomains:    maps.RelayDomains,
@@ -134,22 +176,22 @@ func (r *ConfigReconciler) writeConfigMap(ctx context.Context, maps postfix.Maps
 			Data: data,
 		}
 		if err := r.Create(ctx, &cm); err != nil {
-			return fmt.Errorf("create postfix configmap: %w", err)
+			return "", "", fmt.Errorf("create postfix configmap: %w", err)
 		}
-		return nil
+		return "written", cm.ResourceVersion, nil
 	case err != nil:
-		return fmt.Errorf("get postfix configmap: %w", err)
+		return "", "", fmt.Errorf("get postfix configmap: %w", err)
 	}
 
 	if mapsEqual(cm.Data, data) {
-		return nil
+		return "nochange", cm.ResourceVersion, nil
 	}
 	original := cm.DeepCopy()
 	cm.Data = data
 	if err := r.Patch(ctx, &cm, client.MergeFrom(original)); err != nil {
-		return fmt.Errorf("patch postfix configmap: %w", err)
+		return "", "", fmt.Errorf("patch postfix configmap: %w", err)
 	}
-	return nil
+	return "written", cm.ResourceVersion, nil
 }
 
 // updateRelayStatus reflects a relay's claim outcome (claimed routes plus the

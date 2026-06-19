@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -27,45 +26,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/philprime/iris/api/v1alpha1"
+	"github.com/philprime/iris/internal/config"
 	"github.com/philprime/iris/internal/controller"
+	"github.com/philprime/iris/internal/observability"
 	"github.com/philprime/iris/internal/postfix"
 	iriswebhook "github.com/philprime/iris/internal/webhook"
 )
 
-// config holds the controller's runtime settings, sourced from the environment.
-type config struct {
-	metricsAddr       string
-	healthAddr        string
-	webhookAddr       string
-	enableLeaderElect bool
-	postfixConfigMap  types.NamespacedName
-	relayImage        string
-	clusterDomain     string
-	enableWebhook     bool
-}
-
-func loadConfig() config {
-	return config{
-		metricsAddr:       env("IRIS_CONTROLLER_METRICS_ADDR", ":8080"),
-		healthAddr:        env("IRIS_CONTROLLER_HEALTH_ADDR", ":8081"),
-		webhookAddr:       env("IRIS_CONTROLLER_WEBHOOK_ADDR", ":9443"),
-		enableLeaderElect: envBool("IRIS_CONTROLLER_LEADER_ELECT", true),
-		postfixConfigMap: types.NamespacedName{
-			Namespace: env("IRIS_CONTROLLER_NAMESPACE", "iris-system"),
-			Name:      env("IRIS_CONTROLLER_POSTFIX_CONFIGMAP", "iris-postfix-maps"),
-		},
-		relayImage:    env("IRIS_CONTROLLER_RELAY_IMAGE", "ghcr.io/philprime/iris-relay:latest"),
-		clusterDomain: env("IRIS_CONTROLLER_CLUSTER_DOMAIN", "cluster.local"),
-		enableWebhook: envBool("IRIS_CONTROLLER_ENABLE_WEBHOOK", true),
-	}
-}
-
 func run(ctx context.Context) error {
-	cfg := loadConfig()
+	var cfg config.Controller
+	if err := config.Load(&cfg); err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	if cfg.Sentry.Release == "" {
+		cfg.Sentry.Release = sentryReleaseID()
+	}
 
-	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
-	logger := slog.New(handler)
-	ctrl.SetLogger(logr.FromSlogHandler(handler))
+	terminal := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
+	logger, flush := observability.Setup(ctx, cfg.Sentry, terminal)
+	defer flush()
+	ctrl.SetLogger(observability.LogrFromSlog(logger))
 
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -75,16 +55,16 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("register iris scheme: %w", err)
 	}
 
-	webhookHost, webhookPort, err := splitHostPort(cfg.webhookAddr)
+	webhookHost, webhookPort, err := splitHostPort(cfg.WebhookAddr)
 	if err != nil {
-		return fmt.Errorf("parse webhook address %q: %w", cfg.webhookAddr, err)
+		return fmt.Errorf("parse webhook address %q: %w", cfg.WebhookAddr, err)
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: cfg.metricsAddr},
-		HealthProbeBindAddress: cfg.healthAddr,
-		LeaderElection:         cfg.enableLeaderElect,
+		Metrics:                metricsserver.Options{BindAddress: cfg.MetricsAddr},
+		HealthProbeBindAddress: cfg.HealthAddr,
+		LeaderElection:         cfg.LeaderElect,
 		LeaderElectionID:       "iris-controller.philprime.dev",
 		LeaseDuration:          ptr(15 * time.Second),
 		RenewDeadline:          ptr(10 * time.Second),
@@ -97,8 +77,8 @@ func run(ctx context.Context) error {
 	configReconciler := &controller.ConfigReconciler{
 		Client:           mgr.GetClient(),
 		Scheme:           mgr.GetScheme(),
-		PostfixConfigMap: cfg.postfixConfigMap,
-		RenderOptions:    postfix.Options{ClusterDomain: cfg.clusterDomain},
+		PostfixConfigMap: types.NamespacedName{Namespace: cfg.Namespace, Name: cfg.PostfixConfigMap},
+		RenderOptions:    postfix.Options{ClusterDomain: cfg.ClusterDomain},
 	}
 	if err := configReconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("set up config reconciler: %w", err)
@@ -107,13 +87,13 @@ func run(ctx context.Context) error {
 	relayReconciler := &controller.RelayReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
-		RelayImage: cfg.relayImage,
+		RelayImage: cfg.RelayImage,
 	}
 	if err := relayReconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("set up relay reconciler: %w", err)
 	}
 
-	if cfg.enableWebhook {
+	if cfg.EnableWebhook {
 		if err := iriswebhook.SetupRelayWebhookWithManager(mgr); err != nil {
 			return fmt.Errorf("set up relay webhook: %w", err)
 		}
@@ -123,7 +103,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("add healthz check: %w", err)
 	}
 	readyz := healthz.Ping
-	if cfg.enableWebhook {
+	if cfg.EnableWebhook {
 		readyz = mgr.GetWebhookServer().StartedChecker()
 	}
 	if err := mgr.AddReadyzCheck("ready", readyz); err != nil {
@@ -131,8 +111,11 @@ func run(ctx context.Context) error {
 	}
 
 	logger.InfoContext(ctx, "starting iris controller",
-		slog.Bool("leaderElection", cfg.enableLeaderElect),
-		slog.Bool("webhook", cfg.enableWebhook))
+		slog.String("version", version),
+		slog.String("commit", commit),
+		slog.String("buildDate", date),
+		slog.Bool("leaderElection", cfg.LeaderElect),
+		slog.Bool("webhook", cfg.EnableWebhook))
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		return fmt.Errorf("run manager: %w", err)
 	}
@@ -141,11 +124,13 @@ func run(ctx context.Context) error {
 
 func ptr[T any](v T) *T { return &v }
 
-func env(key, fallback string) string {
-	if v, ok := os.LookupEnv(key); ok && v != "" {
-		return v
+// sentryReleaseID resolves the Sentry release: the ldflags-injected value when
+// set, otherwise derived from the build version and commit.
+func sentryReleaseID() string {
+	if sentryRelease != "" {
+		return sentryRelease
 	}
-	return fallback
+	return observability.ReleaseID(version, commit)
 }
 
 // splitHostPort parses a "host:port" bind address into its host and integer
@@ -160,15 +145,4 @@ func splitHostPort(addr string) (string, int, error) {
 		return "", 0, fmt.Errorf("invalid port %q: %w", portStr, err)
 	}
 	return host, port, nil
-}
-
-func envBool(key string, fallback bool) bool {
-	switch env(key, "") {
-	case "":
-		return fallback
-	case "true", "1", "yes":
-		return true
-	default:
-		return false
-	}
 }
