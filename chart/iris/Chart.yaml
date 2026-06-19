@@ -1,0 +1,17 @@
+apiVersion: v2
+name: iris
+description: A single public SMTP entrypoint for a Kubernetes cluster, declaratively routed and fanned out to in-cluster services.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/philprime/iris
+sources:
+  - https://github.com/philprime/iris
+keywords:
+  - smtp
+  - email
+  - postfix
+  - ingress
+  - controller
+maintainers:
+  - name: Philip Niedertscheider

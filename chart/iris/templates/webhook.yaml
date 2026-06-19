@@ -1,0 +1,77 @@
+{{- if .Values.webhook.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "iris.webhookService" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook
+spec:
+  selector:
+    {{- include "iris.controller.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: webhook
+      port: 443
+      targetPort: webhook
+{{- if .Values.webhook.certManager.enabled }}
+{{- if not .Values.webhook.certManager.issuerRef }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "iris.fullname" . }}-selfsigned
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "iris.fullname" . }}-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "iris.fullname" . }}-webhook-cert
+  dnsNames:
+    - {{ include "iris.webhookService" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "iris.webhookService" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    {{- if .Values.webhook.certManager.issuerRef }}
+    {{- toYaml .Values.webhook.certManager.issuerRef | nindent 4 }}
+    {{- else }}
+    name: {{ include "iris.fullname" . }}-selfsigned
+    kind: Issuer
+    {{- end }}
+{{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "iris.fullname" . }}-relay
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+  {{- if .Values.webhook.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "iris.fullname" . }}-webhook
+  {{- end }}
+webhooks:
+  - name: vrelay.iris.philprime.dev
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Fail
+    clientConfig:
+      service:
+        name: {{ include "iris.webhookService" . }}
+        namespace: {{ .Release.Namespace }}
+        path: /validate-iris-philprime-dev-v1alpha1-relay
+    rules:
+      - apiGroups: ["iris.philprime.dev"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["relays"]
+{{- end }}

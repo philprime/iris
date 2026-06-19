@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iris.fullname" . }}-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+spec:
+  replicas: {{ .Values.controller.replicas }}
+  selector:
+    matchLabels:
+      {{- include "iris.controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "iris.controller.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "iris.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: controller
+          image: {{ include "iris.controller.image" . }}
+          imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          env:
+            - name: IRIS_CONTROLLER_METRICS_ADDR
+              value: ":8080"
+            - name: IRIS_CONTROLLER_HEALTH_ADDR
+              value: ":8081"
+            - name: IRIS_CONTROLLER_WEBHOOK_ADDR
+              value: ":{{ .Values.webhook.port }}"
+            - name: IRIS_CONTROLLER_LEADER_ELECT
+              value: {{ .Values.controller.leaderElection | quote }}
+            - name: IRIS_CONTROLLER_ENABLE_WEBHOOK
+              value: {{ .Values.webhook.enabled | quote }}
+            - name: IRIS_CONTROLLER_NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: IRIS_CONTROLLER_POSTFIX_CONFIGMAP
+              value: {{ include "iris.postfixMapsConfigMap" . }}
+            - name: IRIS_CONTROLLER_RELAY_IMAGE
+              value: {{ include "iris.relay.image" . }}
+            {{- include "iris.sentryEnv" . | nindent 12 }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+            {{- if .Values.webhook.enabled }}
+            - name: webhook
+              containerPort: {{ .Values.webhook.port }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+          resources:
+            {{- toYaml .Values.controller.resources | nindent 12 }}
+          {{- if .Values.webhook.enabled }}
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /tmp/k8s-webhook-server/serving-certs
+              readOnly: true
+          {{- end }}
+      {{- if .Values.webhook.enabled }}
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: {{ include "iris.fullname" . }}-webhook-cert
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "iris.fullname" . }}-controller-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+spec:
+  selector:
+    {{- include "iris.controller.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: metrics

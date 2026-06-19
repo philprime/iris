@@ -1,0 +1,86 @@
+# Default values for the iris chart.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# imagePullSecrets are applied to every pod in the chart.
+imagePullSecrets: []
+
+controller:
+  replicas: 2
+  image:
+    repository: ghcr.io/philprime/iris/controller
+    # tag defaults to the chart appVersion when empty.
+    tag: ""
+    pullPolicy: IfNotPresent
+  # leaderElection keeps a single active reconciler across replicas.
+  leaderElection: true
+  # relayImage is the image the controller reconciles for each Relay's pod.
+  relayImage:
+    repository: ghcr.io/philprime/iris/relay
+    tag: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+postfix:
+  replicas: 2
+  image:
+    repository: ghcr.io/philprime/iris/postfix
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# exposure controls how the Postfix ingress is published.
+exposure:
+  # mode is loadBalancer (default) or none (operator wires their own Service).
+  mode: loadBalancer
+  service:
+    annotations: {}
+    # loadBalancerIP pins a stable public IP for MX records when supported.
+    loadBalancerIP: ""
+  ports:
+    smtp: 25
+    submission: 587
+    smtps: 465
+
+webhook:
+  enabled: true
+  port: 9443
+  # certManager provisions the serving certificate. When disabled, supply the
+  # certificate another way and set caBundle on the webhook configuration.
+  certManager:
+    enabled: true
+    # issuerRef references an existing Issuer/ClusterIssuer. When empty a
+    # self-signed Issuer is created in the release namespace.
+    issuerRef: {}
+
+metrics:
+  # serviceMonitor requires the Prometheus operator CRDs.
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+  # networkPolicy restricts scrape access to the monitoring namespace.
+  networkPolicy:
+    enabled: false
+    monitoringNamespace: monitoring
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# sentry is injected as IRIS_SENTRY_* env on every component (opt-in).
+sentry:
+  enabled: false
+  dsn: ""
+  environment: production

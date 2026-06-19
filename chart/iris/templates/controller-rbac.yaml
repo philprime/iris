@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "iris.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+{{- with .Values.imagePullSecrets }}
+imagePullSecrets:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+---
+# ClusterRole mirrors the markers compiled into config/rbac/role.yaml.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "iris.fullname" . }}-manager
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["iris.philprime.dev"]
+    resources: ["relays"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["iris.philprime.dev"]
+    resources: ["relays/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["iris.philprime.dev"]
+    resources: ["relays/finalizers"]
+    verbs: ["update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "iris.fullname" . }}-manager
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "iris.fullname" . }}-manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "iris.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

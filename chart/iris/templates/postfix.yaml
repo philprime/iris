@@ -1,0 +1,107 @@
+{{/*
+The Postfix maps ConfigMap is created empty and owned by the chart. The
+controller renders the routing maps into it from the Relay resources. The
+helm.sh/resource-policy keep annotation stops Helm from deleting the
+controller-managed content on upgrade.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "iris.postfixMapsConfigMap" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postfix
+  annotations:
+    helm.sh/resource-policy: keep
+data:
+  transport: ""
+  relay_domains: ""
+  relay_recipient_maps: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iris.fullname" . }}-postfix
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postfix
+spec:
+  replicas: {{ .Values.postfix.replicas }}
+  selector:
+    matchLabels:
+      {{- include "iris.postfix.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "iris.postfix.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postfix
+          image: {{ include "iris.postfix.image" . }}
+          imagePullPolicy: {{ .Values.postfix.image.pullPolicy }}
+          env:
+            - name: IRIS_RELOADER_WATCH_PATH
+              value: /etc/postfix/maps
+            - name: IRIS_RELOADER_ADMIN_ADDR
+              value: ":8080"
+            {{- include "iris.sentryEnv" . | nindent 12 }}
+          ports:
+            - name: smtp
+              containerPort: {{ .Values.exposure.ports.smtp }}
+            - name: submission
+              containerPort: {{ .Values.exposure.ports.submission }}
+            - name: smtps
+              containerPort: {{ .Values.exposure.ports.smtps }}
+            - name: metrics
+              containerPort: 8080
+          resources:
+            {{- toYaml .Values.postfix.resources | nindent 12 }}
+          volumeMounts:
+            - name: maps
+              mountPath: /etc/postfix/maps
+              readOnly: true
+      volumes:
+        - name: maps
+          configMap:
+            name: {{ include "iris.postfixMapsConfigMap" . }}
+{{- if ne .Values.exposure.mode "none" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "iris.fullname" . }}-postfix
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postfix
+  {{- with .Values.exposure.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: LoadBalancer
+  {{- with .Values.exposure.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  selector:
+    {{- include "iris.postfix.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: smtp
+      port: {{ .Values.exposure.ports.smtp }}
+      targetPort: smtp
+      protocol: TCP
+    - name: submission
+      port: {{ .Values.exposure.ports.submission }}
+      targetPort: submission
+      protocol: TCP
+    - name: smtps
+      port: {{ .Values.exposure.ports.smtps }}
+      targetPort: smtps
+      protocol: TCP
+{{- end }}
