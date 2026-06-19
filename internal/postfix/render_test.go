@@ -19,9 +19,10 @@ import (
 
 // Feature: Postfix map rendering
 // Scenario: a single relay claiming one exact address
-//   Given a Relay with a single address route
-//   When  the Postfix maps are rendered
-//   Then  the transport map routes that address to the relay's Service DNS
+//
+//	Given a Relay with a single address route
+//	When  the Postfix maps are rendered
+//	Then  the transport map routes that address to the relay's Service DNS
 func TestRenderSingleExactAddressRouteTransport(t *testing.T) {
 	relays := []v1alpha1.Relay{
 		{
@@ -45,9 +46,10 @@ func TestRenderSingleExactAddressRouteTransport(t *testing.T) {
 
 // Feature: Postfix map rendering
 // Scenario: relay_domains and relay_recipient_maps for an exact address
-//   Given a Relay with a single address route
-//   When  the Postfix maps are rendered
-//   Then  the address domain is a relay domain and the address is an allowed recipient
+//
+//	Given a Relay with a single address route
+//	When  the Postfix maps are rendered
+//	Then  the address domain is a relay domain and the address is an allowed recipient
 func TestRenderSingleExactAddressRouteDomainsAndRecipients(t *testing.T) {
 	relays := []v1alpha1.Relay{
 		{
@@ -73,9 +75,10 @@ func TestRenderSingleExactAddressRouteDomainsAndRecipients(t *testing.T) {
 
 // Feature: Postfix map rendering
 // Scenario: a relay claiming a whole domain
-//   Given a Relay with a single domain route
-//   When  the Postfix maps are rendered
-//   Then  the domain routes to the Service DNS and any local-part is an allowed recipient
+//
+//	Given a Relay with a single domain route
+//	When  the Postfix maps are rendered
+//	Then  the domain routes to the Service DNS and any local-part is an allowed recipient
 func TestRenderSingleDomainRoute(t *testing.T) {
 	relays := []v1alpha1.Relay{
 		{
@@ -104,9 +107,10 @@ func TestRenderSingleDomainRoute(t *testing.T) {
 
 // Feature: Postfix map rendering
 // Scenario: output is stable regardless of input order
-//   Given two relays supplied in reverse-sorted order
-//   When  the Postfix maps are rendered
-//   Then  every map is sorted by route key so the output is byte-stable
+//
+//	Given two relays supplied in reverse-sorted order
+//	When  the Postfix maps are rendered
+//	Then  every map is sorted by route key so the output is byte-stable
 func TestRenderSortsOutputByRouteKey(t *testing.T) {
 	relays := []v1alpha1.Relay{
 		{
@@ -147,9 +151,10 @@ func TestRenderSortsOutputByRouteKey(t *testing.T) {
 
 // Feature: Postfix map rendering
 // Scenario: two relays claim the same route key
-//   Given an incumbent relay created before a newcomer, both claiming one address
-//   When  the Postfix maps are rendered
-//   Then  the incumbent owns the route and the newcomer is reported as a conflict
+//
+//	Given an incumbent relay created before a newcomer, both claiming one address
+//	When  the Postfix maps are rendered
+//	Then  the incumbent owns the route and the newcomer is reported as a conflict
 func TestRenderFirstWriterWinsOnConflict(t *testing.T) {
 	early := metav1.NewTime(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	late := metav1.NewTime(time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
@@ -194,9 +199,10 @@ func TestRenderFirstWriterWinsOnConflict(t *testing.T) {
 
 // Feature: Postfix map rendering
 // Scenario: a conflict between relays with equal creation timestamps
-//   Given two relays created at the same instant, both claiming one address
-//   When  the Postfix maps are rendered
-//   Then  the tie breaks deterministically by namespace then name
+//
+//	Given two relays created at the same instant, both claiming one address
+//	When  the Postfix maps are rendered
+//	Then  the tie breaks deterministically by namespace then name
 func TestRenderConflictTieBreaksByNamespaceThenName(t *testing.T) {
 	ts := metav1.NewTime(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 

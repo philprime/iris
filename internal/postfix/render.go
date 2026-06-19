@@ -100,6 +100,15 @@ func Render(relays []v1alpha1.Relay, opts Options) (Maps, []Conflict, error) {
 	}, conflicts, nil
 }
 
+// RouteKey returns the cluster-wide conflict key and the relay_recipient_maps
+// representation (the form surfaced in status.claimedRoutes) for a route. Both
+// are empty when the route sets neither address nor domain. The conflict key is
+// what Render dedups on and what a Conflict reports in its Route field.
+func RouteKey(route v1alpha1.Route) (conflictKey, claimed string) {
+	key, recipient, _ := routeKeys(route)
+	return key, recipient
+}
+
 // routeKeys returns the conflict/transport key, the relay_recipient_maps key,
 // and the relay domain for a route. An exact address and a whole-domain route
 // occupy different key spaces (an address always contains '@'), so they never
