@@ -106,10 +106,15 @@ func (s *session) Data(r io.Reader) error {
 		return &smtp.SMTPError{Code: 451, Message: "could not read message"}
 	}
 
+	messageBytes.Observe(float64(len(raw)))
 	decision := Evaluate(s.backend.filters, s.from, raw, int64(len(raw)))
+	filterScore.Observe(float64(decision.Score))
 	if !decision.Accept {
+		messagesTotal.WithLabelValues("rejected_" + decision.Reason).Inc()
+		sessionsTotal.WithLabelValues("rejected").Inc()
 		return rejectionError(decision.Reason)
 	}
+	sessionsTotal.WithLabelValues("accepted").Inc()
 
 	key := DeriveIdempotencyKey(s.backend.idempotency, raw)
 	env, err := BuildEnvelope(s.from, s.rcpts, raw, key)
@@ -127,6 +132,7 @@ func (s *session) Data(r io.Reader) error {
 	if result.RequiredFailed {
 		return &smtp.SMTPError{Code: 451, Message: "a required destination failed, retry later"}
 	}
+	messagesTotal.WithLabelValues("delivered").Inc()
 	return nil
 }
 

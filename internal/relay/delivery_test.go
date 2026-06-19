@@ -14,6 +14,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
 	"github.com/philprime/iris/api/v1alpha1"
 )
 
@@ -66,5 +68,22 @@ func TestFanOutRequiredFailureGates(t *testing.T) {
 
 	if !res.RequiredFailed {
 		t.Error("required failure should mark the batch as required-failed")
+	}
+}
+
+// Feature: fan-out delivery contract
+// Scenario: a delivery records its metrics and clears the in-flight gauge
+func TestFanOutRecordsDeliveryMetrics(t *testing.T) {
+	deliveriesTotal.Reset()
+	ok, closeOK := httpTarget(t, http.StatusOK)
+	defer closeOK()
+
+	FanOut(context.Background(), []Target{{Name: "metered", Required: true, HTTP: ok}}, sampleEnvelope(), []byte("RAW"))
+
+	if got := testutil.ToFloat64(deliveriesTotal.WithLabelValues("metered", "http", "success")); got != 1 {
+		t.Errorf("deliveries_total{success} = %v, want 1", got)
+	}
+	if inflight := testutil.ToFloat64(deliveriesInFlight); inflight != 0 {
+		t.Errorf("deliveries_in_flight = %v, want 0 after delivery", inflight)
 	}
 }

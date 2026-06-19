@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 )
 
 // hashedMaps are the Postfix map files that must be compiled with postmap.
@@ -30,6 +31,21 @@ func execRunner(ctx context.Context, name string, args ...string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w: %s", name, err, out)
 	}
+	return nil
+}
+
+// reload runs a Postfix reload and records the iris_postfix_* metrics: the
+// attempt result, its latency, and the timestamp of the last success.
+func reload(ctx context.Context, dir string, run commandRunner) error {
+	start := time.Now()
+	err := reloadPostfix(ctx, dir, run)
+	reloadDuration.Observe(time.Since(start).Seconds())
+	if err != nil {
+		reloadsTotal.WithLabelValues("failure").Inc()
+		return err
+	}
+	reloadsTotal.WithLabelValues("success").Inc()
+	lastReloadTimestamp.SetToCurrentTime()
 	return nil
 }
 

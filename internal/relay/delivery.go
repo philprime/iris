@@ -11,6 +11,7 @@ package relay
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // Target is a resolved destination ready to deliver: exactly one of HTTP or
@@ -55,11 +56,29 @@ func FanOut(ctx context.Context, targets []Target, env *Envelope, raw []byte) Fa
 	result := FanOutResult{Results: make(map[string]error, len(targets))}
 	for i := range targets {
 		target := &targets[i]
-		err := target.Deliver(ctx, env, raw)
+		err := deliverWithMetrics(ctx, target, env, raw)
 		result.Results[target.Name] = err
 		if err != nil && target.Required {
 			result.RequiredFailed = true
 		}
 	}
 	return result
+}
+
+// deliverWithMetrics delivers to one target and records the in-flight gauge,
+// latency, and per-destination result.
+func deliverWithMetrics(ctx context.Context, target *Target, env *Envelope, raw []byte) error {
+	typ := targetType(target)
+	deliveriesInFlight.Inc()
+	start := time.Now()
+	err := target.Deliver(ctx, env, raw)
+	deliveryDuration.WithLabelValues(target.Name, typ).Observe(time.Since(start).Seconds())
+	deliveriesInFlight.Dec()
+
+	outcome := "success"
+	if err != nil {
+		outcome = "failure"
+	}
+	deliveriesTotal.WithLabelValues(target.Name, typ, outcome).Inc()
+	return err
 }

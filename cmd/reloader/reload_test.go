@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // Feature: postfix reload
@@ -75,6 +77,34 @@ func TestReloadPostfixAbortsOnPostmapFailure(t *testing.T) {
 	}
 	if reloadCalled {
 		t.Error("postfix reload should not run after a postmap failure")
+	}
+}
+
+// Feature: postfix reload
+// Scenario: reload outcomes are metered
+//
+//	Given a reload that succeeds and one that fails
+//	When  each runs
+//	Then  the matching iris_postfix_reloads_total series increments
+func TestReloadRecordsMetrics(t *testing.T) {
+	reloadsTotal.Reset()
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "transport"), "x")
+
+	okRunner := func(_ context.Context, _ string, _ ...string) error { return nil }
+	if err := reload(context.Background(), dir, okRunner); err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got := testutil.ToFloat64(reloadsTotal.WithLabelValues("success")); got != 1 {
+		t.Errorf("success reloads = %v, want 1", got)
+	}
+
+	failRunner := func(_ context.Context, _ string, _ ...string) error { return errors.New("boom") }
+	if err := reload(context.Background(), dir, failRunner); err == nil {
+		t.Error("expected reload error")
+	}
+	if got := testutil.ToFloat64(reloadsTotal.WithLabelValues("failure")); got != 1 {
+		t.Errorf("failure reloads = %v, want 1", got)
 	}
 }
 
