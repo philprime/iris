@@ -14,10 +14,12 @@ tool (
 
 require (
 	github.com/caarlos0/env/v11 v11.4.1
+	github.com/emersion/go-message v0.18.2
 	github.com/getsentry/sentry-go v0.47.0
 	github.com/getsentry/sentry-go/slog v0.47.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-playground/validator/v10 v10.30.3
+	github.com/google/go-jsonnet v0.22.0
 	github.com/prometheus/client_golang v1.23.2
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
