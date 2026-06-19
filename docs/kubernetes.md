@@ -9,6 +9,9 @@ finalizers, owner references, leader election, controller-runtime metrics).
 Group/Version/Kind: **`iris.philprime.dev/v1alpha1`, `Relay`** (namespaced). One `Relay` = one
 transformer Deployment+Service + a set of routes compiled into Postfix.
 
+The full field reference (every field, its type, defaults, and validation) is generated from the
+API types into [crd-reference.md](crd-reference.md). A minimal `Relay`:
+
 ```yaml
 apiVersion: iris.philprime.dev/v1alpha1
 kind: Relay
@@ -16,82 +19,28 @@ metadata:
   name: appstore-invites
   namespace: example
 spec:
-  # 1. WHAT MAIL THIS RELAY CLAIMS → compiled into Postfix transport + relay_recipient_maps
   routes:
-    - address: invites@invite.example.com # exact address (wins over domain)
-    - domain: invite.example.com # any local-part on the domain
-
-  # 2. INBOUND FILTERING → relay rejects with SMTP 5xx before transforming (optional)
-  filters:
-    maxMessageBytes: 26214400 # 25 MiB
-    allowedSenderDomains: ["email.apple.com"]
-    requireDKIM: ["email.apple.com"] # DKIM d= must match one of these
-    minScore: 2 # accept if score >= minScore
-    scoreSignals: [
-      fromDomain,
-      messageIdDomain,
-      dkimDomain,
-      authResults,
-      bodyLinkDomain,
-    ]
-
-  # 3. DELIVERY → fan-out to ALL destinations (broadcast)
-  idempotency: messageId # messageId (default) | sha256 — key sent to every destination
+    - address: invites@invite.example.com
+    - domain: invite.example.com
   destinations:
     - name: webhook
-      required: true # failure → SMTP 4xx → Postfix retries the message
       http:
         url: https://service.internal/inbound
-        method: POST # default POST
-        payloadFormat: json # json (canonical envelope, default) | raw (message/rfc822)
-        authSecretRef: { name: webhook, key: token } # → Authorization header
-        transform: # OPTIONAL Jsonnet remap
-          jsonnetConfigMapRef: { name: mapping, key: map.jsonnet }
-    - name: archive
-      required: false # best-effort; failure logged + metered, no upstream retry
-      smtp:
-        host: archive.internal
-        port: 1025
-        startTLS: false
-        # authSecretRef: { name: ..., key: ... }
-
-  # 4. RELAY POD SHAPE (optional; sensible defaults)
-  deployment:
-    replicas: 1
-    resources:
-      requests: { cpu: 50m, memory: 64Mi }
-      limits: { cpu: 250m, memory: 128Mi }
-
-status:
-  conditions: # Kstatus-style
-    - { type: Ready, status: "True", observedGeneration: 4, ... }
-    - {
-        type: Programmed,
-        status: "True",
-        ...,
-      } # compiled into the Postfix ingress
-    - { type: Conflict, status: "False", ... }
-  observedGeneration: 4
-  claimedRoutes: ["invites@invite.example.com", "@invite.example.com"]
-  serviceRef: { name: relay-appstore-invites }
 ```
 
-### Field semantics
+### Semantics worth calling out
 
-- **`routes`** are entries that are each `address:` (exact) **or** `domain:` (wildcard
-  local-part). Both are supported, and an exact address wins over a `@domain` route (Postfix
-  transport semantics).
-- **`filters`** (optional) provide declarative inbound validation. The relay rejects with SMTP 5xx
-  before forwarding when a hard rule fails (size, sender domain, DKIM) or when the heuristic
-  **score** is below `minScore`. See [relay.md](relay.md#filters--scoring) for signal semantics.
-- **`destinations`** is an **array**, and every accepted message is delivered to **all** of them
-  (fan-out). Each is a discriminated union of exactly one of `http` / `smtp`, enforced by CEL
-  `x-kubernetes-validations` plus the validating webhook. Each destination has its **own**
-  transform/payload format.
-- **`required`** (per destination, default `true`) gates retry. See
-  [relay.md](relay.md#delivery-contract).
-- **`idempotency`** selects the stable key sent to every destination.
-- **Secrets** are always `secretRef` (same namespace as the `Relay`), never inline.
+These behaviors are not obvious from the generated field reference:
+
+- An exact `address` route wins over a `@domain` route (Postfix transport semantics).
+- `destinations` is a fan-out. Every accepted message is delivered to **all** of them. Each
+  destination is exactly one of `http` or `smtp` (enforced by CEL plus the validating webhook) and
+  carries its own transform and payload format.
+- `required` (default true) gates retry. A required-destination failure returns SMTP 4xx so Postfix
+  retries. See [relay.md](relay.md#delivery-contract).
+- `filters` reject with SMTP 5xx before forwarding. Signal semantics are in
+  [relay.md](relay.md#filters--scoring).
+- Secrets are always referenced (`secretRef`, same namespace as the `Relay`), never inline.
 
 ## Conflict resolution
 
@@ -157,12 +106,11 @@ Grounded in cloudnative-pg, source-controller, and cert-manager (see [references
 
 ## RBAC
 
-Generated from `//+kubebuilder:rbac` markers on the reconcilers (`make manifests`):
-
-- Controller: `Relay` (get/list/watch + `status`/`finalizers`), `Deployment`/`Service`/`ConfigMap`
-  (full CRUD in managed namespaces), `Secret` (get/list/watch for referenced secrets), `Lease`
-  (leader election), `Event` (emit).
-- Relay pods: **no Kubernetes API access**.
+The manager ClusterRole is generated from the `//+kubebuilder:rbac` markers on the reconcilers
+(`make manifests`) into [`config/rbac/role.yaml`](../config/rbac/role.yaml), which is the source of
+truth for the exact grants. The controller needs the `Relay` CR plus its status and finalizers, the
+child `Deployment`/`Service`/`ConfigMap` it manages, referenced `Secret`s, leases for leader
+election, and events. Relay pods need **no** Kubernetes API access.
 
 ## Helm chart
 

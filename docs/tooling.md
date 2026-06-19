@@ -10,15 +10,15 @@ Tools are versioned as module dependencies and invoked with `go tool <name>`, so
 global installs and Renovate keeps them current. The pinned versions live in `go.mod`. The table
 below is only what each is for:
 
-| Tool                                                 | Purpose                                                                                |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `sigs.k8s.io/controller-tools/cmd/controller-gen`    | Generate deepcopy code, CRD/RBAC/webhook manifests                                     |
-| `sigs.k8s.io/controller-runtime/tools/setup-envtest` | Download the envtest API-server/etcd binaries                                          |
-| `github.com/air-verse/air`                           | Hot-reload for `make dev`                                                              |
-| `github.com/go-delve/delve/cmd/dlv`                  | Debugger                                                                               |
-| `honnef.co/go/tools/cmd/staticcheck`                 | Static analysis                                                                        |
-| `golang.org/x/vuln/cmd/govulncheck`                  | Vulnerability scanning                                                                 |
-| `github.com/elastic/crd-ref-docs`                    | Generate CRD reference docs from `api/v1alpha1` (feeds [kubernetes.md](kubernetes.md)) |
+| Tool                                                 | Purpose                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `sigs.k8s.io/controller-tools/cmd/controller-gen`    | Generate deepcopy code, CRD/RBAC/webhook manifests                                    |
+| `sigs.k8s.io/controller-runtime/tools/setup-envtest` | Download the envtest API-server/etcd binaries                                         |
+| `github.com/air-verse/air`                           | Hot-reload for `make dev`                                                             |
+| `github.com/go-delve/delve/cmd/dlv`                  | Debugger                                                                              |
+| `honnef.co/go/tools/cmd/staticcheck`                 | Static analysis                                                                       |
+| `golang.org/x/vuln/cmd/govulncheck`                  | Vulnerability scanning                                                                |
+| `github.com/elastic/crd-ref-docs`                    | Generate the CRD reference ([crd-reference.md](crd-reference.md)) from `api/v1alpha1` |
 
 System tools (Go, Docker, kubectl, Helm, kind, …) come from the `Brewfile` via `make init`.
 

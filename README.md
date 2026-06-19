@@ -120,9 +120,10 @@ spec:
         port: 1025
 ```
 
-The full CRD reference, field semantics, conflict resolution, and status conditions are in
-[docs/kubernetes.md](docs/kubernetes.md). The data-plane pipeline, filter signals, canonical JSON
-envelope, and delivery contract are in [docs/relay.md](docs/relay.md).
+The generated CRD field reference is in [docs/crd-reference.md](docs/crd-reference.md). The field
+semantics, conflict resolution, and status conditions are in [docs/kubernetes.md](docs/kubernetes.md).
+The data-plane pipeline, filter signals, canonical JSON envelope, and delivery contract are in
+[docs/relay.md](docs/relay.md).
 
 ## Installation
 
@@ -166,7 +167,8 @@ Once installed, point your domain's MX records at the LoadBalancer's public IP a
 | Doc                                       | Covers                                                                                                |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | [architecture.md](docs/architecture.md)   | Components, data flow, public exposure, key properties                                                |
-| [kubernetes.md](docs/kubernetes.md)       | `Relay` CRD reference, controller/reconcilers, conflict resolution, status, RBAC, webhook, Helm chart |
+| [crd-reference.md](docs/crd-reference.md) | Generated `Relay` CRD field reference (types, defaults, validation)                                   |
+| [kubernetes.md](docs/kubernetes.md)       | `Relay` CRD semantics, controller/reconcilers, conflict resolution, status, RBAC, webhook, Helm chart |
 | [relay.md](docs/relay.md)                 | Data plane: session pipeline, filters/scoring, transform, delivery contract, config format            |
 | [observability.md](docs/observability.md) | Health/readiness probes, Prometheus metrics, Sentry error reporting, logging                          |
 | [references.md](docs/references.md)       | Controllers studied for best practices + adopt/skip decisions                                         |

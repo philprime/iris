@@ -88,10 +88,10 @@ public API.
 
 ## Config file format
 
-The relay's mounted config is rendered as **YAML via `sigs.k8s.io/yaml`**, reusing the
-`api/v1alpha1` structs as the single source of truth (YAML→JSON→struct through json tags). The
-file carries a `version` field for forward compatibility, and stays debuggable with
-`kubectl get cm -o yaml`. (Postfix map files use Postfix's own native format, not YAML.)
+The relay's mounted config is a versioned YAML document rendered from the `Relay` spec. The schema
+and its version live in [`internal/relay/config.go`](../internal/relay/config.go), which reuses the
+`api/v1alpha1` structs as the single source of truth, so the config stays debuggable with
+`kubectl get cm -o yaml`. Postfix map files use Postfix's own native format, not YAML.
 
 ## Observability
 
