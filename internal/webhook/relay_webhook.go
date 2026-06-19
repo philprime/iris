@@ -15,7 +15,9 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,6 +25,7 @@ import (
 
 	"github.com/philprime/iris/api/v1alpha1"
 	"github.com/philprime/iris/internal/postfix"
+	irisrelay "github.com/philprime/iris/internal/relay"
 )
 
 // SetupRelayWebhookWithManager registers the validating webhook for Relay on
@@ -70,6 +73,12 @@ func (v *RelayValidator) validate(ctx context.Context, relay *v1alpha1.Relay) er
 		return fmt.Errorf("check route conflicts: %w", err)
 	}
 	errs = append(errs, conflicts...)
+
+	transforms, err := v.invalidTransforms(ctx, relay)
+	if err != nil {
+		return fmt.Errorf("check jsonnet transforms: %w", err)
+	}
+	errs = append(errs, transforms...)
 
 	if len(errs) == 0 {
 		return nil
@@ -134,6 +143,41 @@ func (v *RelayValidator) conflictingRoutes(ctx context.Context, relay *v1alpha1.
 		}
 		if by, taken := owned[key]; taken {
 			errs = append(errs, field.Invalid(base.Index(i), key, fmt.Sprintf("route already claimed by relay %s", by)))
+		}
+	}
+	return errs, nil
+}
+
+// invalidTransforms parse-checks each destination's referenced Jsonnet program.
+// A referenced ConfigMap that does not exist yet is not blocked (the check is
+// deferred rather than forcing the ConfigMap to be applied first). A present
+// ConfigMap with a missing key or an unparseable program is rejected.
+func (v *RelayValidator) invalidTransforms(ctx context.Context, relay *v1alpha1.Relay) (field.ErrorList, error) {
+	var errs field.ErrorList
+	base := field.NewPath("spec", "destinations")
+	for i, dest := range relay.Spec.Destinations {
+		if dest.HTTP == nil || dest.HTTP.Transform == nil {
+			continue
+		}
+		ref := dest.HTTP.Transform.JsonnetConfigMapRef
+		path := base.Index(i).Child("http", "transform", "jsonnetConfigMapRef")
+
+		var cm corev1.ConfigMap
+		err := v.Client.Get(ctx, types.NamespacedName{Namespace: relay.Namespace, Name: ref.Name}, &cm)
+		if apierrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		program, ok := cm.Data[ref.Key]
+		if !ok {
+			errs = append(errs, field.Invalid(path, ref.Key, fmt.Sprintf("key %q not found in ConfigMap %q", ref.Key, ref.Name)))
+			continue
+		}
+		if perr := irisrelay.ValidateJsonnet(program); perr != nil {
+			errs = append(errs, field.Invalid(path, ref.Name, fmt.Sprintf("jsonnet transform is invalid: %v", perr)))
 		}
 	}
 	return errs, nil

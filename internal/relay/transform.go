@@ -18,6 +18,17 @@ import (
 	"github.com/philprime/iris/api/v1alpha1"
 )
 
+// ValidateJsonnet parses a Jsonnet program and returns an error when it is not
+// syntactically valid. It parses without evaluating, so it does not require the
+// envelope ext var. It is used by the validating webhook to reject a broken
+// transform at apply time.
+func ValidateJsonnet(program string) error {
+	if _, err := jsonnet.SnippetToAST("transform.jsonnet", program); err != nil {
+		return fmt.Errorf("parse jsonnet: %w", err)
+	}
+	return nil
+}
+
 // Render produces a destination's payload from the canonical envelope. The raw
 // format forwards the original message bytes. The json format emits the
 // canonical envelope, optionally remapped by a Jsonnet program that reads the

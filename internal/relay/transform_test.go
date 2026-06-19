@@ -91,3 +91,19 @@ func TestRenderJsonnetError(t *testing.T) {
 		t.Error("expected error for invalid jsonnet")
 	}
 }
+
+// Feature: transform
+// Scenario: jsonnet is syntax-checked without evaluation
+//
+//	Given a valid and an invalid program
+//	When  each is validated
+//	Then  only the invalid one errors, and a program using the envelope ext var
+//	      passes (validation does not evaluate)
+func TestValidateJsonnet(t *testing.T) {
+	if err := ValidateJsonnet(`local e = std.extVar("envelope"); { s: e.subject }`); err != nil {
+		t.Errorf("valid jsonnet rejected: %v", err)
+	}
+	if err := ValidateJsonnet(`{ this is broken`); err == nil {
+		t.Error("expected error for invalid jsonnet")
+	}
+}

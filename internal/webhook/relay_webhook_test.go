@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,7 +28,63 @@ func scheme(t *testing.T) *runtime.Scheme {
 	if err := v1alpha1.AddToScheme(s); err != nil {
 		t.Fatalf("add v1alpha1: %v", err)
 	}
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatalf("add corev1: %v", err)
+	}
 	return s
+}
+
+func transformDestination(cmName, key string) v1alpha1.Destination {
+	return v1alpha1.Destination{
+		Name: "webhook",
+		HTTP: &v1alpha1.HTTPDestination{
+			URL:       "https://x.test",
+			Transform: &v1alpha1.Transform{JsonnetConfigMapRef: v1alpha1.ConfigMapKeyRef{Name: cmName, Key: key}},
+		},
+	}
+}
+
+func jsonnetConfigMap(name, key, program string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		Data:       map[string]string{key: program},
+	}
+}
+
+// Feature: Relay admission validation
+// Scenario: a broken Jsonnet transform is rejected at apply time
+func TestValidateRejectsBrokenJsonnet(t *testing.T) {
+	cm := jsonnetConfigMap("map", "m.jsonnet", "{ this is broken")
+	v := validatorWith(t, cm)
+	r := relay("a", []v1alpha1.Route{{Domain: "a.example.com"}}, transformDestination("map", "m.jsonnet"))
+	if _, err := v.ValidateCreate(context.Background(), r); err == nil {
+		t.Fatal("expected rejection for unparseable jsonnet transform")
+	}
+}
+
+// Feature: Relay admission validation
+// Scenario: a valid Jsonnet transform is admitted
+func TestValidateAcceptsValidJsonnet(t *testing.T) {
+	cm := jsonnetConfigMap("map", "m.jsonnet", `local e = std.extVar("envelope"); { s: e.subject }`)
+	v := validatorWith(t, cm)
+	r := relay("a", []v1alpha1.Route{{Domain: "a.example.com"}}, transformDestination("map", "m.jsonnet"))
+	if _, err := v.ValidateCreate(context.Background(), r); err != nil {
+		t.Fatalf("expected valid transform admitted, got: %v", err)
+	}
+}
+
+// Feature: Relay admission validation
+// Scenario: a transform whose ConfigMap does not exist yet is not blocked
+//
+//	Given a transform reference with no ConfigMap present
+//	When  the relay is validated
+//	Then  admission succeeds, deferring the check rather than forcing ordering
+func TestValidateSkipsMissingTransformConfigMap(t *testing.T) {
+	v := validatorWith(t)
+	r := relay("a", []v1alpha1.Route{{Domain: "a.example.com"}}, transformDestination("absent", "m.jsonnet"))
+	if _, err := v.ValidateCreate(context.Background(), r); err != nil {
+		t.Fatalf("expected admit when transform ConfigMap is absent, got: %v", err)
+	}
 }
 
 func relay(name string, routes []v1alpha1.Route, dests ...v1alpha1.Destination) *v1alpha1.Relay {
