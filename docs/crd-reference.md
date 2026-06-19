@@ -215,13 +215,13 @@ _Appears in:_
 
 - [Filters](#filters)
 
-| Field             | Description                                                                                                    |
-| ----------------- | -------------------------------------------------------------------------------------------------------------- |
-| `fromDomain`      | ScoreSignalFromDomain matches when the From header domain is allowed.<br />                                    |
-| `messageIdDomain` | ScoreSignalMessageIDDomain matches when the Message-ID domain is allowed.<br />                                |
-| `dkimDomain`      | ScoreSignalDKIMDomain matches when the DKIM d= domain is allowed.<br />                                        |
-| `authResults`     | ScoreSignalAuthResults matches when Authentication-Results shows a DKIM<br />pass for an allowed domain.<br /> |
-| `bodyLinkDomain`  | ScoreSignalBodyLinkDomain matches when the body links to an allowed domain.<br />                              |
+| Field             | Description                                                                                                                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fromDomain`      | ScoreSignalFromDomain matches when the From header domain is allowed.<br />                                                                                                                                                        |
+| `messageIdDomain` | ScoreSignalMessageIDDomain matches when the Message-ID domain is allowed.<br />                                                                                                                                                    |
+| `dkimDomain`      | ScoreSignalDKIMDomain matches when a cryptographically valid DKIM<br />signature has a d= domain that is allowed.<br />                                                                                                            |
+| `authResults`     | ScoreSignalAuthResults matches when a cryptographically valid DKIM<br />signature has a d= domain that is allowed. It is an alias of dkimDomain<br />kept for configurations that reference upstream authentication results.<br /> |
+| `bodyLinkDomain`  | ScoreSignalBodyLinkDomain matches when the body links to an allowed domain.<br />                                                                                                                                                  |
 
 #### SecretKeyRef
 

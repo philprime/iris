@@ -94,10 +94,12 @@ const (
 	ScoreSignalFromDomain ScoreSignal = "fromDomain"
 	// ScoreSignalMessageIDDomain matches when the Message-ID domain is allowed.
 	ScoreSignalMessageIDDomain ScoreSignal = "messageIdDomain"
-	// ScoreSignalDKIMDomain matches when the DKIM d= domain is allowed.
+	// ScoreSignalDKIMDomain matches when a cryptographically valid DKIM
+	// signature has a d= domain that is allowed.
 	ScoreSignalDKIMDomain ScoreSignal = "dkimDomain"
-	// ScoreSignalAuthResults matches when Authentication-Results shows a DKIM
-	// pass for an allowed domain.
+	// ScoreSignalAuthResults matches when a cryptographically valid DKIM
+	// signature has a d= domain that is allowed. It is an alias of dkimDomain
+	// kept for configurations that reference upstream authentication results.
 	ScoreSignalAuthResults ScoreSignal = "authResults"
 	// ScoreSignalBodyLinkDomain matches when the body links to an allowed domain.
 	ScoreSignalBodyLinkDomain ScoreSignal = "bodyLinkDomain"

@@ -24,14 +24,17 @@ For each inbound SMTP session from the Postfix ingress:
 Declarative inbound validation from `spec.filters`:
 
 - **Hard rules** (reject before forwarding): `maxMessageBytes`, `allowedSenderDomains`,
-  `requireDKIM` (DKIM `d=` must match).
+  `requireDKIM` (a cryptographically valid DKIM signature whose `d=` matches).
 - **Heuristic score**, the sum of matched `scoreSignals`. Accept when `score >= minScore`. Signals
   are named, reusable checks:
   - `fromDomain`, the `From:` header domain is allowed.
   - `messageIdDomain`, the `Message-ID` domain is allowed.
-  - `dkimDomain`, the DKIM `d=` domain is allowed.
-  - `authResults`, the `Authentication-Results` shows DKIM pass for an allowed domain.
+  - `dkimDomain`, a cryptographically valid DKIM signature has an allowed `d=` domain.
+  - `authResults`, an alias of `dkimDomain` for the same cryptographic check.
   - `bodyLinkDomain`, the body contains a link to an allowed domain.
+
+DKIM signatures are verified cryptographically. Public keys are resolved from DNS at evaluation
+time.
 
 ## Transform
 

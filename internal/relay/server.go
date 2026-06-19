@@ -12,6 +12,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"strings"
 
 	"github.com/emersion/go-smtp"
@@ -22,11 +23,12 @@ import (
 // Backend is the go-smtp Backend that runs the relay pipeline for each inbound
 // session: filter, transform, and fan out to the destinations.
 type Backend struct {
-	routes      []v1alpha1.Route
-	filters     *v1alpha1.Filters
-	idempotency v1alpha1.IdempotencyMode
-	targets     []Target
-	logger      *slog.Logger
+	routes       []v1alpha1.Route
+	filters      *v1alpha1.Filters
+	idempotency  v1alpha1.IdempotencyMode
+	targets      []Target
+	dkimResolver DKIMResolver
+	logger       *slog.Logger
 }
 
 // BackendConfig configures a relay Backend.
@@ -43,11 +45,12 @@ func NewBackend(cfg BackendConfig, logger *slog.Logger) *Backend {
 		logger = slog.Default()
 	}
 	return &Backend{
-		routes:      cfg.Routes,
-		filters:     cfg.Filters,
-		idempotency: cfg.Idempotency,
-		targets:     cfg.Targets,
-		logger:      logger,
+		routes:       cfg.Routes,
+		filters:      cfg.Filters,
+		idempotency:  cfg.Idempotency,
+		targets:      cfg.Targets,
+		dkimResolver: net.LookupTXT,
+		logger:       logger,
 	}
 }
 
@@ -107,7 +110,7 @@ func (s *session) Data(r io.Reader) error {
 	}
 
 	messageBytes.Observe(float64(len(raw)))
-	decision := Evaluate(s.backend.filters, s.from, raw, int64(len(raw)))
+	decision := Evaluate(s.backend.filters, s.from, raw, int64(len(raw)), s.backend.dkimResolver)
 	filterScore.Observe(float64(decision.Score))
 	if !decision.Accept {
 		messagesTotal.WithLabelValues("rejected_" + decision.Reason).Inc()

@@ -14,8 +14,15 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/emersion/go-msgauth/dkim"
+
 	"github.com/philprime/iris/api/v1alpha1"
 )
+
+// DKIMResolver looks up DKIM public-key TXT records for a domain. Production
+// uses net.LookupTXT; tests inject a resolver that returns locally generated
+// keys so verification never touches DNS.
+type DKIMResolver func(domain string) ([]string, error)
 
 // Rejection reasons. They map to SMTP responses and the iris_relay_messages_total
 // result label.
@@ -36,14 +43,15 @@ type Decision struct {
 	Score int
 }
 
-// NOTE: requireDKIM and the dkimDomain/authResults signals are evaluated
-// structurally (a DKIM-Signature or Authentication-Results header naming a
-// matching domain). Cryptographic DKIM verification is a planned follow-up.
-
 // Evaluate applies a relay's filters to a message: the hard rules (size, sender
 // domain, DKIM) reject first, then the heuristic score is gated against
 // minScore. A nil filter set accepts everything.
-func Evaluate(filters *v1alpha1.Filters, mailFrom string, raw []byte, size int64) Decision {
+//
+// DKIM is verified cryptographically: requireDKIM and the dkimDomain/authResults
+// score signals reflect a valid signature whose d= matches an allowed domain.
+// The resolver fetches DKIM public keys (net.LookupTXT in production, an
+// injected lookup in tests).
+func Evaluate(filters *v1alpha1.Filters, mailFrom string, raw []byte, size int64, resolver DKIMResolver) Decision {
 	if filters == nil {
 		return Decision{Accept: true}
 	}
@@ -58,16 +66,56 @@ func Evaluate(filters *v1alpha1.Filters, mailFrom string, raw []byte, size int64
 
 	header := parseHeader(raw)
 
-	if len(filters.RequireDKIM) > 0 && !domainMatches(dkimDomain(header), filters.RequireDKIM) {
+	// Verify DKIM only when a rule or signal needs it, since it parses and
+	// hashes the whole message and may resolve DNS.
+	var verified []string
+	if dkimNeeded(filters) {
+		verified = verifiedDKIMDomains(raw, resolver)
+	}
+
+	if len(filters.RequireDKIM) > 0 && !anyDomainMatches(verified, filters.RequireDKIM) {
 		return Decision{Reason: ReasonDKIM}
 	}
 
-	score := scoreMessage(filters, header, raw)
+	score := scoreMessage(filters, header, raw, verified)
 	if int(filters.MinScore) > 0 && score < int(filters.MinScore) {
 		return Decision{Reason: ReasonScore, Score: score}
 	}
 
 	return Decision{Accept: true, Score: score}
+}
+
+// dkimNeeded reports whether evaluating the filters requires DKIM verification.
+func dkimNeeded(filters *v1alpha1.Filters) bool {
+	if len(filters.RequireDKIM) > 0 {
+		return true
+	}
+	for _, signal := range filters.ScoreSignals {
+		if signal == v1alpha1.ScoreSignalDKIMDomain || signal == v1alpha1.ScoreSignalAuthResults {
+			return true
+		}
+	}
+	return false
+}
+
+// verifiedDKIMDomains returns the d= domains of every cryptographically valid
+// DKIM signature on the message. A resolver of nil falls back to DNS.
+func verifiedDKIMDomains(raw []byte, resolver DKIMResolver) []string {
+	opts := &dkim.VerifyOptions{}
+	if resolver != nil {
+		opts.LookupTXT = resolver
+	}
+	verifications, err := dkim.VerifyWithOptions(bytes.NewReader(raw), opts)
+	if err != nil {
+		return nil
+	}
+	var domains []string
+	for _, v := range verifications {
+		if v.Err == nil && v.Domain != "" {
+			domains = append(domains, strings.ToLower(v.Domain))
+		}
+	}
+	return domains
 }
 
 // SenderAllowed reports whether the envelope sender passes the allowed-sender
@@ -79,27 +127,27 @@ func SenderAllowed(filters *v1alpha1.Filters, mailFrom string) bool {
 	return domainMatches(senderDomain(mailFrom), filters.AllowedSenderDomains)
 }
 
-func scoreMessage(filters *v1alpha1.Filters, header mail.Header, raw []byte) int {
+func scoreMessage(filters *v1alpha1.Filters, header mail.Header, raw []byte, verified []string) int {
 	allowed := filters.AllowedSenderDomains
 	score := 0
 	for _, signal := range filters.ScoreSignals {
-		if signalMatches(signal, header, raw, allowed) {
+		if signalMatches(signal, header, raw, allowed, verified) {
 			score++
 		}
 	}
 	return score
 }
 
-func signalMatches(signal v1alpha1.ScoreSignal, header mail.Header, raw []byte, allowed []string) bool {
+func signalMatches(signal v1alpha1.ScoreSignal, header mail.Header, raw []byte, allowed, verified []string) bool {
 	switch signal {
 	case v1alpha1.ScoreSignalFromDomain:
 		return domainMatches(addressDomain(header.Get("From")), allowed)
 	case v1alpha1.ScoreSignalMessageIDDomain:
 		return domainMatches(messageIDDomain(header.Get("Message-ID")), allowed)
-	case v1alpha1.ScoreSignalDKIMDomain:
-		return domainMatches(dkimDomain(header), allowed)
-	case v1alpha1.ScoreSignalAuthResults:
-		return authResultsPass(header.Get("Authentication-Results"), allowed)
+	case v1alpha1.ScoreSignalDKIMDomain, v1alpha1.ScoreSignalAuthResults:
+		// Both signals now require a cryptographically valid signature whose
+		// d= matches an allowed domain.
+		return anyDomainMatches(verified, allowed)
 	case v1alpha1.ScoreSignalBodyLinkDomain:
 		return bodyLinksToAllowed(raw, allowed)
 	default:
@@ -133,30 +181,11 @@ func messageIDDomain(messageID string) string {
 	return senderDomain(strings.Trim(messageID, "<> "))
 }
 
-// dkimDomain returns the d= tag domain of the first DKIM-Signature header.
-func dkimDomain(header mail.Header) string {
-	sig := header.Get("DKIM-Signature")
-	if sig == "" {
-		return ""
-	}
-	for _, tag := range strings.Split(sig, ";") {
-		tag = strings.TrimSpace(tag)
-		if strings.HasPrefix(tag, "d=") {
-			return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(tag, "d=")))
-		}
-	}
-	return ""
-}
-
-// authResultsPass reports whether Authentication-Results shows a DKIM pass for
-// one of the allowed domains.
-func authResultsPass(authResults string, allowed []string) bool {
-	lower := strings.ToLower(authResults)
-	if !strings.Contains(lower, "dkim=pass") {
-		return false
-	}
-	for _, domain := range allowed {
-		if strings.Contains(lower, strings.ToLower(domain)) {
+// anyDomainMatches reports whether any host in hosts equals or is a subdomain
+// of any allowed domain.
+func anyDomainMatches(hosts, allowed []string) bool {
+	for _, host := range hosts {
+		if domainMatches(host, allowed) {
 			return true
 		}
 	}
