@@ -42,10 +42,9 @@ Tags are derived by `docker/metadata-action` (see [ci.md](ci.md)).
 `chart/iris/` is the primary install surface (mirrors the ingress-nginx chart layout):
 
 - `crds/`: generated CRDs (kept in sync by `make manifests`, and CI enforces this).
-- `templates/`: controller Deployment + RBAC + leader-election, Postfix Deployment +
-  LoadBalancer Service, validating webhook, ServiceMonitor, PDB.
-- `values.yaml`: controller replicas + leader election, Postfix replicas/resources, exposure
-  `mode` (`loadBalancer` default), image repos/tags, TLS/cert-manager settings.
+- `templates/`: the controller, Postfix tier, validating webhook, and monitoring resources.
+- `values.yaml`: the configurable surface (replicas, resources, exposure `mode`, images, webhook
+  settings). See the file for the full set and defaults.
 
 Release flow:
 

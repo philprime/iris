@@ -18,15 +18,17 @@ manager, so they use `go-health`, the same library every other philprime HTTP se
 ## Listen addresses
 
 Each binary serves its observability surface on fixed, separately-bound ports (kubebuilder
-defaults for the controller, a single admin server for the data plane), configurable via env:
+defaults for the controller, a single admin server for the data plane). The bind addresses are
+overridable via the `IRIS_<COMPONENT>_*_ADDR` env vars defined in
+[`internal/config`](../internal/config/config.go):
 
-| Binary     | Port    | Serves                                      | Env                            |
-| ---------- | ------- | ------------------------------------------- | ------------------------------ |
-| controller | `:8080` | `/metrics`                                  | `IRIS_CONTROLLER_METRICS_ADDR` |
-| controller | `:8081` | `/healthz`, `/readyz`                       | `IRIS_CONTROLLER_HEALTH_ADDR`  |
-| controller | `:9443` | validating webhook                          | `IRIS_CONTROLLER_WEBHOOK_ADDR` |
-| relay      | `:8080` | `/metrics`, `/livez`, `/readyz`, `/healthz` | `IRIS_RELAY_ADMIN_ADDR`        |
-| reloader   | `:8080` | `/metrics`, `/livez`, `/readyz`             | `IRIS_RELOADER_ADMIN_ADDR`     |
+| Binary     | Port    | Serves                                      |
+| ---------- | ------- | ------------------------------------------- |
+| controller | `:8080` | `/metrics`                                  |
+| controller | `:8081` | `/healthz`, `/readyz`                       |
+| controller | `:9443` | validating webhook                          |
+| relay      | `:8080` | `/metrics`, `/livez`, `/readyz`, `/healthz` |
+| reloader   | `:8080` | `/metrics`, `/livez`, `/readyz`             |
 
 The relay's SMTP listener (25, from Postfix) is separate from its admin HTTP server. The admin
 server hosts only probes + metrics and needs **no Kubernetes API access** (consistent with
@@ -237,22 +239,11 @@ exact image, matching the `version`/`commit`/`date` ldflags already used for the
 
 ### Configuration
 
-Env vars (per binary, `IRIS_SENTRY_*`), mirroring `asm-relay`'s `ConfigSentry`:
-
-| Env                              | Default       | Meaning                            |
-| -------------------------------- | ------------- | ---------------------------------- |
-| `IRIS_SENTRY_ENABLED`            | `false`       | Master switch                      |
-| `IRIS_SENTRY_DSN`                | —             | Project DSN                        |
-| `IRIS_SENTRY_ENVIRONMENT`        | `local`       | `production` / `staging` / `local` |
-| `IRIS_SENTRY_RELEASE`            | ldflags value | `iris@<version>:<git-sha>`         |
-| `IRIS_SENTRY_DEBUG`              | `false`       | SDK debug logging                  |
-| `IRIS_SENTRY_ATTACH_STACKTRACE`  | `true`        | Attach stacks to events            |
-| `IRIS_SENTRY_SAMPLE_RATE`        | `1.0`         | Error event sample rate            |
-| `IRIS_SENTRY_ENABLE_TRACING`     | `false`       | Performance tracing                |
-| `IRIS_SENTRY_TRACES_SAMPLE_RATE` | `0.0`         | Trace sample rate (raise per env)  |
-
-Sentry settings surface as Helm values (chart-wide, with optional per-component override) and are
-injected as env on each Deployment.
+Sentry is configured per binary from `IRIS_SENTRY_*` env vars, defined with their defaults and
+validation in [`internal/config`](../internal/config/config.go) (the `Sentry` struct, mirroring
+asm-relay's `ConfigSentry`). It is disabled by default with tracing off, so local and air-gapped
+installs run clean. The settings surface as Helm values (chart-wide, with optional per-component
+override) and are injected as env on each Deployment.
 
 ## Logging
 

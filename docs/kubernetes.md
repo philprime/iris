@@ -115,6 +115,6 @@ election, and events. Relay pods need **no** Kubernetes API access.
 ## Helm chart
 
 `chart/iris/` installs controller + CRDs + RBAC + Postfix tier + LoadBalancer Service + webhook +
-ServiceMonitor + PDB, mirroring the ingress-nginx chart layout. Key values: controller replica
-count + leader election, Postfix replica count and resources, exposure `mode`, TLS/cert-manager
-settings.
+ServiceMonitor + PDB, mirroring the ingress-nginx chart layout. The configurable values (controller
+and Postfix replicas and resources, exposure `mode`, images, webhook cert-manager settings) live in
+[`chart/iris/values.yaml`](../chart/iris/values.yaml).
