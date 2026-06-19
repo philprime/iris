@@ -12,7 +12,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -34,7 +36,7 @@ import (
 type config struct {
 	metricsAddr       string
 	healthAddr        string
-	webhookPort       int
+	webhookAddr       string
 	enableLeaderElect bool
 	postfixConfigMap  types.NamespacedName
 	relayImage        string
@@ -46,7 +48,7 @@ func loadConfig() config {
 	return config{
 		metricsAddr:       env("IRIS_CONTROLLER_METRICS_ADDR", ":8080"),
 		healthAddr:        env("IRIS_CONTROLLER_HEALTH_ADDR", ":8081"),
-		webhookPort:       envInt("IRIS_CONTROLLER_WEBHOOK_PORT", 9443),
+		webhookAddr:       env("IRIS_CONTROLLER_WEBHOOK_ADDR", ":9443"),
 		enableLeaderElect: envBool("IRIS_CONTROLLER_LEADER_ELECT", true),
 		postfixConfigMap: types.NamespacedName{
 			Namespace: env("IRIS_CONTROLLER_NAMESPACE", "iris-system"),
@@ -73,6 +75,11 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("register iris scheme: %w", err)
 	}
 
+	webhookHost, webhookPort, err := splitHostPort(cfg.webhookAddr)
+	if err != nil {
+		return fmt.Errorf("parse webhook address %q: %w", cfg.webhookAddr, err)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: cfg.metricsAddr},
@@ -81,7 +88,7 @@ func run(ctx context.Context) error {
 		LeaderElectionID:       "iris-controller.philprime.dev",
 		LeaseDuration:          ptr(15 * time.Second),
 		RenewDeadline:          ptr(10 * time.Second),
-		WebhookServer:          webhook.NewServer(webhook.Options{Port: cfg.webhookPort}),
+		WebhookServer:          webhook.NewServer(webhook.Options{Host: webhookHost, Port: webhookPort}),
 	})
 	if err != nil {
 		return fmt.Errorf("create manager: %w", err)
@@ -141,14 +148,18 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-func envInt(key string, fallback int) int {
-	if v, ok := os.LookupEnv(key); ok && v != "" {
-		var n int
-		if _, err := fmt.Sscanf(v, "%d", &n); err == nil {
-			return n
-		}
+// splitHostPort parses a "host:port" bind address into its host and integer
+// port. An empty host (for example ":9443") binds all interfaces.
+func splitHostPort(addr string) (string, int, error) {
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", 0, err
 	}
-	return fallback
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid port %q: %w", portStr, err)
+	}
+	return host, port, nil
 }
 
 func envBool(key string, fallback bool) bool {
