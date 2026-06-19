@@ -17,6 +17,7 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.24.0
+	github.com/fsnotify/fsnotify v1.10.0
 	github.com/getsentry/sentry-go v0.47.0
 	github.com/getsentry/sentry-go/slog v0.47.0
 	github.com/go-logr/logr v1.4.3
@@ -51,7 +52,6 @@ require (
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/color v1.19.0 // indirect
-	github.com/fsnotify/fsnotify v1.10.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/go-delve/delve v1.26.3 // indirect

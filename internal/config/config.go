@@ -48,6 +48,22 @@ type Controller struct {
 	Sentry           Sentry
 }
 
+// Relay holds the relay data-plane server's settings.
+type Relay struct {
+	ConfigPath string `env:"IRIS_RELAY_CONFIG" envDefault:"/etc/iris/relay/config.yaml" validate:"required"`
+	MountDir   string `env:"IRIS_RELAY_MOUNT_DIR" envDefault:"/etc/iris/relay" validate:"required"`
+	SMTPAddr   string `env:"IRIS_RELAY_SMTP_ADDR" envDefault:":25" validate:"required"`
+	AdminAddr  string `env:"IRIS_RELAY_ADMIN_ADDR" envDefault:":8080" validate:"required"`
+	Sentry     Sentry
+}
+
+// Reloader holds the Postfix reloader's settings.
+type Reloader struct {
+	WatchPath string `env:"IRIS_RELOADER_WATCH_PATH" envDefault:"/etc/postfix/maps" validate:"required"`
+	AdminAddr string `env:"IRIS_RELOADER_ADMIN_ADDR" envDefault:":8080" validate:"required"`
+	Sentry    Sentry
+}
+
 // Load parses the environment into cfg (which must be a pointer to a config
 // struct) and validates it. It returns an error if either step fails.
 func Load(cfg any) error {
