@@ -27,6 +27,13 @@ IMAGE_TAG ?= dev
 CONTROLLER_IMG ?= $(IMAGE_REGISTRY)/iris-controller:$(IMAGE_TAG)
 RELAY_IMG ?= $(IMAGE_REGISTRY)/iris-relay:$(IMAGE_TAG)
 POSTFIX_IMG ?= $(IMAGE_REGISTRY)/iris-postfix:$(IMAGE_TAG)
+E2E_STUB_IMG ?= $(IMAGE_REGISTRY)/iris-e2e-stub:$(IMAGE_TAG)
+
+# End-to-end deployment coordinates. E2E_FULLNAME is the chart fullname for the
+# release (<release>-<chart name>), which prefixes the rendered resource names.
+E2E_RELEASE ?= iris
+E2E_NAMESPACE ?= iris-system
+E2E_FULLNAME ?= $(E2E_RELEASE)-iris
 
 # Tools pinned via the go.mod `tool` directive, invoked with `go tool`.
 CONTROLLER_GEN ?= go tool controller-gen
@@ -263,6 +270,15 @@ build-docker-postfix:
 	docker buildx build --platform linux/amd64 -f build/postfix.Dockerfile -t $(POSTFIX_IMG) --load .; \
 	end_group
 
+## Build the end-to-end stub destination image (used by make test-e2e)
+.PHONY: build-docker-e2e-stub
+build-docker-e2e-stub:
+	@set -eu; $(LOG); \
+	begin_group "Build image: $(E2E_STUB_IMG)"; \
+	log_info "docker buildx build -f build/e2e-stub.Dockerfile"; \
+	docker buildx build --platform linux/amd64 -f build/e2e-stub.Dockerfile -t $(E2E_STUB_IMG) --load .; \
+	end_group
+
 # ============================================================================
 # DEVELOPMENT & RUNNING
 # ============================================================================
@@ -321,11 +337,40 @@ test-coverage: setup-envtest
 
 ## Run the kind-based end-to-end suite (test/e2e/)
 .PHONY: test-e2e
-test-e2e:
+test-e2e: build-docker build-docker-e2e-stub
+	@set -eu; $(LOG); \
+	begin_group "Provision kind cluster $(KIND_CLUSTER)"; \
+	if ! kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER)"; then \
+		kind create cluster --name $(KIND_CLUSTER); \
+	fi; \
+	kind export kubeconfig --name $(KIND_CLUSTER); \
+	end_group; \
+	begin_group "Load images into kind"; \
+	kind load docker-image $(CONTROLLER_IMG) $(RELAY_IMG) $(POSTFIX_IMG) $(E2E_STUB_IMG) --name $(KIND_CLUSTER); \
+	end_group; \
+	begin_group "Deploy chart (release $(E2E_RELEASE) → $(E2E_NAMESPACE))"; \
+	helm upgrade --install $(E2E_RELEASE) chart/iris --namespace $(E2E_NAMESPACE) --create-namespace \
+		--set webhook.enabled=false \
+		--set podDisruptionBudget.enabled=false \
+		--set controller.replicas=1 --set postfix.replicas=1 \
+		--set controller.image.tag=$(IMAGE_TAG) --set controller.image.pullPolicy=IfNotPresent \
+		--set controller.relayImage.tag=$(IMAGE_TAG) \
+		--set postfix.image.tag=$(IMAGE_TAG) --set postfix.image.pullPolicy=IfNotPresent; \
+	end_group; \
+	begin_group "Wait for control and data plane rollout"; \
+	kubectl -n $(E2E_NAMESPACE) rollout status deploy/$(E2E_FULLNAME)-controller --timeout=180s; \
+	kubectl -n $(E2E_NAMESPACE) rollout status deploy/$(E2E_FULLNAME)-postfix --timeout=180s; \
+	end_group; \
+	$(MAKE) test-e2e-run
+
+## Run only the e2e suite against an already-deployed cluster (no build/deploy)
+.PHONY: test-e2e-run
+test-e2e-run:
 	@set -eu; $(LOG); \
 	begin_group "Run e2e suite"; \
 	log_info "go test ./test/e2e/... -tags=e2e"; \
-	go test ./test/e2e/... -tags=e2e -v; \
+	E2E_NAMESPACE=$(E2E_NAMESPACE) E2E_POSTFIX_SERVICE=$(E2E_FULLNAME)-postfix E2E_STUB_IMAGE=$(E2E_STUB_IMG) \
+		go test ./test/e2e/... -tags=e2e -v -count=1 -timeout 600s; \
 	end_group; \
 	log_notice "End-to-end suite passed."
 
@@ -350,6 +395,8 @@ analyze:
 	begin_group "go vet"; \
 	log_info "Examining source for suspicious constructs..."; \
 	go vet ./...; \
+	log_info "Type-checking the e2e suite (build tag e2e)..."; \
+	go vet -tags=e2e ./test/e2e/...; \
 	end_group; \
 	begin_group "staticcheck"; \
 	log_info "Running static analysis..."; \

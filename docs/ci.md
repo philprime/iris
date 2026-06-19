@@ -10,10 +10,15 @@ concurrency group that cancels in-progress runs for the same ref.
 | `build.yml`    | `make build` (all binaries)                             | Compilation breaks                     |
 | `format.yml`   | `make format`, then checks `git status --porcelain`     | Formatting not committed               |
 | `generate.yml` | `make generate`, then checks `git status --porcelain`   | Generated code/CRDs not committed      |
-| `test.yml`     | `make test` (unit + envtest)                            | Any test fails                         |
+| `test.yml`     | `make test` (unit + envtest) and `make test-e2e` (kind) | Any test fails                         |
 | `publish.yml`  | Build + push the controller / relay / postfix images    | Build/push error (push skipped on PRs) |
 
 Each Go workflow uses `actions/setup-go` with the version from `go.mod` and module caching.
+
+`test.yml` runs two jobs. `test` is the fast unit + envtest pass. `e2e` installs kind, Helm, and
+swaks, then runs `make test-e2e`, which builds and loads the images, deploys the chart into a kind
+cluster, and drives mail through the Postfix ingress. The cluster is torn down with `make kind-down`
+even on failure.
 
 ## `generate.yml` (keeping codegen honest)
 

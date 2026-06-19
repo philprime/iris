@@ -34,21 +34,25 @@ owner references, and finalizer behavior without a full cluster.
 
 ## End-to-end (kind)
 
-`test/e2e/` runs the real images in a kind cluster: apply a `Relay`, send SMTP to the Postfix
-ingress, assert the message reaches a stub HTTP/SMTP destination, and assert retry behavior on a
-`required` destination failure.
+`test/e2e/` (build tag `e2e`) runs the real images in a kind cluster. It deploys a stub HTTP
+destination and two `Relay`s, sends mail with `swaks` to the Postfix ingress, asserts the message
+reaches the stub through the relay, and asserts that a `required` destination failure makes the
+relay answer SMTP `4xx` (the retry signal Postfix acts on).
 
 ```sh
-make test-e2e   # creates kind cluster, builds+loads images, deploys chart, runs the suite
+make test-e2e       # creates kind cluster, builds+loads images, deploys chart, runs the suite
+make test-e2e-run   # only the suite, against an already-deployed cluster (fast iteration)
 ```
 
-The e2e suite covers what envtest cannot: the Postfix reload path, the relay's SMTP server, and
-the at-least-once delivery contract end to end.
+`make test-e2e` deploys with the webhook disabled (cert-manager is not installed in the kind
+cluster) and the locally built `:dev` images. It needs `kind`, `helm`, `kubectl`, and `swaks` on
+`PATH`. The suite covers what envtest cannot: the Postfix routing and reload path, the relay's SMTP
+server, and the delivery contract end to end.
 
 ## Conventions
 
-- Integration/e2e tests behind `//go:build integration` where they need external deps
-  (`go test -tags=integration ./...`).
+- Tests that need external deps sit behind a build tag: the kind suite uses `//go:build e2e`
+  (`make test-e2e`), so a plain `make test` never needs a cluster.
 - Every integration test carries a Gherkin-style header comment:
 
   ```go

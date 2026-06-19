@@ -23,3 +23,25 @@ jobs:
           go-version-file: go.mod
       - name: make test
         run: make test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - uses: azure/setup-helm@v4
+      - name: Install swaks
+        run: sudo apt-get update
+      - name: Install swaks package
+        run: sudo apt-get install -y swaks
+      - name: make test-e2e
+        run: make test-e2e
+      - name: Teardown kind
+        if: always()
+        run: make kind-down
