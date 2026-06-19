@@ -11,6 +11,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -37,9 +38,12 @@ const conditionDeploymentAvailable = "DeploymentAvailable"
 
 // Ports exposed by every relay pod and Service.
 const (
-	smtpPort    int32 = 25
-	adminPort   int32 = 8080
-	configMount       = "/etc/iris/relay"
+	smtpPort  int32 = 25
+	adminPort int32 = 8080
+	// relayMountDir is the base path the relay reads. The config, referenced
+	// secrets, and Jsonnet transforms mount as siblings under it, matching the
+	// layout internal/relay.BuildTargets expects.
+	relayMountDir = "/etc/iris/relay"
 )
 
 // RelayReconciler reconciles the per-relay Deployment, Service, and config
@@ -161,6 +165,7 @@ func (r *RelayReconciler) reconcileDeployment(ctx context.Context, rel *v1alpha1
 		dep.Spec.Replicas = relayReplicas(rel)
 		dep.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
 		dep.Spec.Template.ObjectMeta.Labels = labels
+		volumes, mounts := relayVolumes(rel)
 		dep.Spec.Template.Spec = corev1.PodSpec{
 			Containers: []corev1.Container{{
 				Name:  "relay",
@@ -170,21 +175,13 @@ func (r *RelayReconciler) reconcileDeployment(ctx context.Context, rel *v1alpha1
 					{Name: "admin", ContainerPort: adminPort, Protocol: corev1.ProtocolTCP},
 				},
 				Env: []corev1.EnvVar{
-					{Name: "IRIS_RELAY_CONFIG", Value: configMount + "/" + relay.ConfigFileName},
+					{Name: "IRIS_RELAY_CONFIG", Value: relayMountDir + "/config/" + relay.ConfigFileName},
+					{Name: "IRIS_RELAY_MOUNT_DIR", Value: relayMountDir},
 				},
-				Resources: relayResources(rel),
-				VolumeMounts: []corev1.VolumeMount{
-					{Name: "config", MountPath: configMount, ReadOnly: true},
-				},
+				Resources:    relayResources(rel),
+				VolumeMounts: mounts,
 			}},
-			Volumes: []corev1.Volume{{
-				Name: "config",
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{Name: configMapName(rel.Name)},
-					},
-				},
-			}},
+			Volumes: volumes,
 		}
 		return nil
 	})
@@ -192,6 +189,81 @@ func (r *RelayReconciler) reconcileDeployment(ctx context.Context, rel *v1alpha1
 		return nil, err
 	}
 	return dep, nil
+}
+
+// relayVolumes builds the pod volumes and container mounts for a relay: its
+// rendered config, plus every referenced auth Secret and Jsonnet ConfigMap,
+// mounted where internal/relay.BuildTargets reads them. The relay pod has no
+// Kubernetes API access, so these inputs must be projected as files.
+func relayVolumes(rel *v1alpha1.Relay) ([]corev1.Volume, []corev1.VolumeMount) {
+	volumes := []corev1.Volume{{
+		Name: "config",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{Name: configMapName(rel.Name)},
+			},
+		},
+	}}
+	mounts := []corev1.VolumeMount{
+		{Name: "config", MountPath: relayMountDir + "/config", ReadOnly: true},
+	}
+
+	secrets, configMaps := referencedMounts(rel)
+	for _, name := range secrets {
+		volumes = append(volumes, corev1.Volume{
+			Name:         "secret-" + name,
+			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: name}},
+		})
+		mounts = append(mounts, corev1.VolumeMount{
+			Name:      "secret-" + name,
+			MountPath: relayMountDir + "/secrets/" + name,
+			ReadOnly:  true,
+		})
+	}
+	for _, name := range configMaps {
+		volumes = append(volumes, corev1.Volume{
+			Name: "transform-" + name,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{LocalObjectReference: corev1.LocalObjectReference{Name: name}},
+			},
+		})
+		mounts = append(mounts, corev1.VolumeMount{
+			Name:      "transform-" + name,
+			MountPath: relayMountDir + "/transforms/" + name,
+			ReadOnly:  true,
+		})
+	}
+	return volumes, mounts
+}
+
+// referencedMounts returns the sorted, de-duplicated names of the Secrets and
+// Jsonnet ConfigMaps a relay's destinations reference.
+func referencedMounts(rel *v1alpha1.Relay) (secrets, configMaps []string) {
+	secretSet := map[string]struct{}{}
+	configMapSet := map[string]struct{}{}
+	for _, dest := range rel.Spec.Destinations {
+		if dest.HTTP != nil {
+			if dest.HTTP.AuthSecretRef != nil {
+				secretSet[dest.HTTP.AuthSecretRef.Name] = struct{}{}
+			}
+			if dest.HTTP.Transform != nil {
+				configMapSet[dest.HTTP.Transform.JsonnetConfigMapRef.Name] = struct{}{}
+			}
+		}
+		if dest.SMTP != nil && dest.SMTP.AuthSecretRef != nil {
+			secretSet[dest.SMTP.AuthSecretRef.Name] = struct{}{}
+		}
+	}
+	return sortedKeys(secretSet), sortedKeys(configMapSet)
+}
+
+func sortedKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // apply creates or updates a child object owned by the relay, setting the
