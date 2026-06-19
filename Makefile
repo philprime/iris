@@ -107,13 +107,13 @@ setup-hooks:
 # CODE GENERATION
 # ============================================================================
 
-## Generate deepcopy code and CRD/RBAC/webhook manifests
+## Generate deepcopy code, CRD/RBAC/webhook manifests, and the CRD reference
 #
 # Runs controller-gen to (re)generate zz_generated.deepcopy.go from the API
-# types and the CRD/RBAC/webhook manifests. Run after editing
-# api/v1alpha1/*_types.go.
+# types and the CRD/RBAC/webhook manifests, then renders the CRD reference doc.
+# Run after editing api/v1alpha1/*_types.go.
 .PHONY: generate
-generate: generate-deepcopy manifests
+generate: generate-deepcopy manifests generate-crd-docs
 	@set -eu; $(LOG); log_notice "Code generation complete."
 
 ## Generate deepcopy methods (zz_generated.deepcopy.go)
@@ -157,7 +157,10 @@ manifests:
 
 ## Generate CRD reference docs from api/v1alpha1
 #
-# Renders the CRD reference (feeds docs/kubernetes.md) using crd-ref-docs.
+# Renders docs/crd-reference.md from the API types using crd-ref-docs, then runs
+# the formatter so the generated manifests and docs land in their committed
+# style. As the final step of `generate`, this keeps the whole codegen output
+# clean in one pass.
 .PHONY: generate-crd-docs
 generate-crd-docs:
 	@set -eu; $(LOG); \
@@ -169,6 +172,7 @@ generate-crd-docs:
 		--renderer=markdown \
 		--output-path=docs/crd-reference.md; \
 	end_group
+	@$(MAKE) format
 
 # ============================================================================
 # BUILDING
