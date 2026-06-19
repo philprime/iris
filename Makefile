@@ -133,10 +133,10 @@ generate-deepcopy:
 # IRIS_GEN_PATHS scopes controller-gen to our own source. We cannot use
 # "./..." because controller-gen's directory loader descends into the
 # gitignored reference clones under tmp/refs (cert-manager, cloudnative-pg,
-# source-controller) and would emit their CRDs too. Extend this list as
-# packages carrying markers are added (for example ./internal/... once the
-# reconcilers and webhook land).
-IRIS_GEN_PATHS ?= ./api/...
+# source-controller) and would emit their CRDs too. It is a space-separated
+# list expanded into one paths= flag each. Extend it as packages carrying
+# markers are added.
+IRIS_GEN_PATHS ?= ./api/... ./internal/controller/... ./internal/webhook/...
 .PHONY: manifests
 manifests:
 	@set -eu; $(LOG); \
@@ -146,7 +146,7 @@ manifests:
 		rbac:roleName=iris-manager-role \
 		crd \
 		webhook \
-		paths="$(IRIS_GEN_PATHS)" \
+		$(foreach p,$(IRIS_GEN_PATHS),paths="$(p)") \
 		output:crd:artifacts:config=config/crd/bases \
 		output:rbac:artifacts:config=config/rbac \
 		output:webhook:artifacts:config=config/webhook; \
