@@ -6,7 +6,6 @@
   "yaml": {},
   "excludes": [
     "**/dist",
-    "**/build",
     "**/bin",
     "tmp",
     "chart/iris/crds",
