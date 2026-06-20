@@ -70,4 +70,5 @@ hooks pass on the first try.
 ## Renovate
 
 `renovate.json` keeps Go modules (including the `tool` directive), GitHub Actions, Docker base
-images, and the `boky/postfix` tag current via automated PRs.
+images, the `boky/postfix` tag, and the `.pre-commit-config.yaml` hook revisions current via
+automated PRs.

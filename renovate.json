@@ -66,6 +66,9 @@
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
+  "pre-commit": {
+    "enabled": true
+  },
   "rebaseLabel": "renovate:rebase",
   "schedule": [
     "* 1-4 * * 0,1,6"
