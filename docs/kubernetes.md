@@ -40,7 +40,7 @@ These behaviors are not obvious from the generated field reference:
   retries. See [relay.md](relay.md#delivery-contract).
 - `filters` reject with SMTP 5xx before forwarding. Signal semantics are in
   [relay.md](relay.md#filters--scoring).
-- Secrets are always referenced (`secretRef`, same namespace as the `Relay`), never inline.
+- Secrets are always referenced (`authSecretRef`, same namespace as the `Relay`), never inline.
 
 ## Conflict resolution
 
@@ -57,7 +57,7 @@ One manager, two reconcilers, leader-elected (HA, so only the leader reconciles)
 1. **RelayReconciler** runs per `Relay`. It reconciles a **Deployment + Service**
    (owner-referenced for garbage collection) and renders the relay's config
    (routes/filters/destinations) into a per-relay **ConfigMap** that the relay pod mounts. It wires
-   `secretRef`s as volumes/env into the pod (same namespace is allowed).
+   `authSecretRef`s as volumes/env into the pod (same namespace is allowed).
 2. **ConfigReconciler** watches **all** `Relay`s, compiles the **global** Postfix maps
    (`transport`, `relay_domains`, `relay_recipient_maps`), and writes the Postfix **ConfigMap**.
    It owns conflict resolution. Render, then diff, then write only on change.
@@ -98,11 +98,11 @@ Grounded in cloudnative-pg, source-controller, and cert-manager (see [references
 - The validating webhook is **served by the controller manager** (single binary), not a separate
   webhook binary plus cainjector. Cert-manager's split is for independent scaling, which is overkill
   here. Webhook serving certificates are provisioned by **cert-manager** (a `Certificate` plus CA
-  injection) or Helm-generated certs.
+  injection), or supplied yourself when cert-manager is disabled.
 - Manager: leader election on (`LeaseDuration` 15s / `RenewDeadline` 10s,
-  `LeaderElectionReleaseOnCancel: true`), metrics endpoint (`:8080`/secure `:8443`),
-  health/readiness probes (`:8081`). Probe and metric wiring, custom `iris_*` collectors, and
-  Sentry are documented in [observability.md](observability.md).
+  `LeaderElectionReleaseOnCancel: true`), plus the metrics endpoint and health/readiness probes.
+  Probe and metric wiring (ports, custom `iris_*` collectors) and Sentry are documented in
+  [observability.md](observability.md).
 
 ## RBAC
 
@@ -114,9 +114,10 @@ election, and events. Relay pods need **no** Kubernetes API access.
 
 ## Helm chart
 
-`chart/iris/` installs controller + CRDs + RBAC + Postfix tier + LoadBalancer Service + webhook +
-ServiceMonitor + PDB, mirroring the ingress-nginx chart layout. The configurable values (controller
-and Postfix replicas and resources, exposure `mode`, images, webhook cert-manager settings) live in
+`chart/iris/` installs the controller, its RBAC, the CRDs, and the Postfix ingress tier, mirroring
+the ingress-nginx chart layout. The validating webhook, ServiceMonitor, and PodDisruptionBudget are
+gated by chart values (with different defaults). The configurable surface (replicas, resources,
+exposure `mode`, images, webhook and cert-manager settings) lives in
 [`chart/iris/values.yaml`](../chart/iris/values.yaml).
 
 Opportunistic STARTTLS on the public SMTP ports (25/587/465) is gated on `postfix.tls.enabled`.
