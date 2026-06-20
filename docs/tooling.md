@@ -14,7 +14,7 @@ below is only what each is for:
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | `sigs.k8s.io/controller-tools/cmd/controller-gen`    | Generate deepcopy code, CRD/RBAC/webhook manifests                                    |
 | `sigs.k8s.io/controller-runtime/tools/setup-envtest` | Download the envtest API-server/etcd binaries                                         |
-| `github.com/air-verse/air`                           | Hot-reload for `make dev`                                                             |
+| `github.com/air-verse/air`                           | Hot-reload for `make dev-controller` / `make dev-relay`                               |
 | `github.com/go-delve/delve/cmd/dlv`                  | Debugger                                                                              |
 | `honnef.co/go/tools/cmd/staticcheck`                 | Static analysis                                                                       |
 | `golang.org/x/vuln/cmd/govulncheck`                  | Vulnerability scanning                                                                |

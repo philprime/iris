@@ -10,7 +10,8 @@ kubebuilder conventions + philprime's `cmd`/`internal` layout:
 ```
 iris/
 ├── PROJECT  Makefile  go.mod  AGENTS.md  CLAUDE.md
-├── Brewfile  dprint.json  .air.toml  .pre-commit-config.yaml  renovate.json
+├── Brewfile  dprint.json  .pre-commit-config.yaml  renovate.json
+├── .air.controller.toml  .air.relay.toml  # air hot-reload configs (make dev-*)
 ├── .github/workflows/      # analyze, build, format, generate, test, publish
 ├── api/v1alpha1/            # Relay types + kubebuilder markers + zz_generated.deepcopy.go
 ├── cmd/

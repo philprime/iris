@@ -283,10 +283,15 @@ build-docker-e2e-stub:
 # DEVELOPMENT & RUNNING
 # ============================================================================
 
-## Run the controller with air hot-reload (.air.toml)
-.PHONY: dev
-dev:
-	go tool air -c .air.toml
+## Run the controller with air hot-reload (.air.controller.toml)
+.PHONY: dev-controller
+dev-controller:
+	go tool air -c .air.controller.toml
+
+## Run the relay with air hot-reload (.air.relay.toml, hack/dev/relay.config.yaml)
+.PHONY: dev-relay
+dev-relay:
+	go tool air -c .air.relay.toml
 
 ## Run the controller directly without hot reload
 .PHONY: run

@@ -1,0 +1,11 @@
+# Local-dev relay config for `make dev-relay` (consumed via .air.relay.toml).
+# This is the data-plane view the controller renders per Relay at runtime. It is
+# kept minimal on purpose: one route and one HTTP destination with no secret or
+# transform refs, so the relay boots without a mounted secrets directory.
+version: v1
+routes:
+  - domain: invite.example.com
+destinations:
+  - name: webhook
+    http:
+      url: http://localhost:8888/in

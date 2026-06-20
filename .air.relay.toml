@@ -1,0 +1,30 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# Rebuild the relay binary into tmp/ on every change.
+cmd = "go build -o ./tmp/relay ./cmd/relay"
+# Run it with local-dev settings: the in-cluster defaults are container paths
+# and the privileged port 25, so point at the checked-in sample config and an
+# unprivileged port instead. See hack/dev/relay.config.yaml.
+full_bin = "IRIS_RELAY_CONFIG=./hack/dev/relay.config.yaml IRIS_RELAY_MOUNT_DIR=./hack/dev IRIS_RELAY_SMTP_ADDR=:2525 IRIS_RELAY_ADMIN_ADDR=:8090 ./tmp/relay"
+
+# Graceful shutdown configuration
+send_interrupt = true
+kill_delay = "10s"
+
+# Watch configuration
+include_ext = ["go"]
+exclude_dir = [".git", ".github", ".vscode", "bin", "dist", "tmp", "chart", "config", "docs", "test"]
+exclude_regex = ["_test.go", "zz_generated.*\\.go"]
+exclude_unchanged = true
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true
+
+[screen]
+clear_on_rebuild = true
+keep_scroll = true

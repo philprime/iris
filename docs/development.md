@@ -36,8 +36,8 @@ The controller runs out-of-cluster against whatever cluster your `kubeconfig` po
 data plane (Postfix + relay) runs in-cluster.
 
 ```sh
-make dev       # run the controller with air hot-reload (.air.toml)
-make run       # run the controller once, no hot-reload (go run ./cmd/controller)
+make dev-controller   # run the controller with air hot-reload (.air.controller.toml)
+make run              # run the controller once, no hot-reload (go run ./cmd/controller)
 ```
 
 Point at a local cluster first:
@@ -45,11 +45,25 @@ Point at a local cluster first:
 ```sh
 make kind-up     # create a kind cluster and load CRDs
 make deploy      # install the chart (controller + Postfix tier) into the cluster
-# ... iterate with `make dev` against that cluster ...
+# ... iterate with `make dev-controller` against that cluster ...
 make kind-down   # tear it down
 ```
 
-For data-plane iteration, the **relay** runs as a normal pod. Build and load its image into kind:
+The **relay** also runs cleanly on the host, since it needs no Kubernetes API access (only a
+config file and mounted secrets). `make dev-relay` hot-reloads it against the checked-in sample
+config, listening on an unprivileged SMTP port. The settings live in `.air.relay.toml` and
+`hack/dev/relay.config.yaml`.
+
+```sh
+make dev-relay   # run the relay locally with air hot-reload
+```
+
+The **reloader** has no local-dev target on purpose. Its job is to shell out to `postmap` and
+`postfix reload`, which only exist inside the Postfix image, so it is exercised through its tests
+rather than run on the host.
+
+To iterate on the relay in-cluster instead, it runs as a normal pod. Build and load its image into
+kind:
 
 ```sh
 make build-docker        # buildx the controller/relay/postfix images
