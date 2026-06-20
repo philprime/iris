@@ -42,8 +42,7 @@ make generate   # regenerates zz_generated.deepcopy.go + CRD/RBAC/webhook manife
 ```
 
 `make manifests` writes CRDs to `config/crd/` (kustomize base) and copies them into
-`chart/iris/crds/` so the chart stays in sync. CI fails if generated files are not committed
-(see [ci.md](ci.md)).
+`chart/iris/crds/` so the chart stays in sync. CI fails if generated files are not committed.
 
 ## Formatting
 

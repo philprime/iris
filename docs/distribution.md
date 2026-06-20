@@ -35,7 +35,7 @@ GitHub App for automated cross-repo PRs).
 - **Main (dev):** every push to `main` publishes `latest` (and the `main` ref tag).
 - **PRs:** images build but are **not** pushed. They are tagged `pr-<n>` for inspection only.
 
-Tags are derived by `docker/metadata-action` (see [ci.md](ci.md)).
+Tags are derived by `docker/metadata-action`.
 
 ## Helm chart
 
