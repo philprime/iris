@@ -18,17 +18,16 @@ manager, so they use `go-health`, the same library every other philprime HTTP se
 ## Listen addresses
 
 Each binary serves its observability surface on fixed, separately-bound ports (kubebuilder
-defaults for the controller, a single admin server for the data plane). The bind addresses are
-overridable via the `IRIS_<COMPONENT>_*_ADDR` env vars defined in
-[`internal/config`](../internal/config/config.go):
+defaults for the controller, a single admin server for the data plane). Each bind address is
+overridable via the env var below, defined in [`internal/config`](../internal/config/config.go):
 
-| Binary     | Port    | Serves                                      |
-| ---------- | ------- | ------------------------------------------- |
-| controller | `:8080` | `/metrics`                                  |
-| controller | `:8081` | `/healthz`, `/readyz`                       |
-| controller | `:9443` | validating webhook                          |
-| relay      | `:8080` | `/metrics`, `/livez`, `/readyz`, `/healthz` |
-| reloader   | `:8080` | `/metrics`, `/livez`, `/readyz`             |
+| Binary     | Env var                        | Default | Serves                                      |
+| ---------- | ------------------------------ | ------- | ------------------------------------------- |
+| controller | `IRIS_CONTROLLER_METRICS_ADDR` | `:8080` | `/metrics`                                  |
+| controller | `IRIS_CONTROLLER_HEALTH_ADDR`  | `:8081` | `/healthz`, `/readyz`                       |
+| controller | `IRIS_CONTROLLER_WEBHOOK_ADDR` | `:9443` | validating webhook                          |
+| relay      | `IRIS_RELAY_ADMIN_ADDR`        | `:8080` | `/metrics`, `/livez`, `/readyz`, `/healthz` |
+| reloader   | `IRIS_RELOADER_ADMIN_ADDR`     | `:8080` | `/metrics`, `/livez`, `/readyz`             |
 
 The relay's SMTP listener (25, from Postfix) is separate from its admin HTTP server. The admin
 server hosts only probes + metrics and needs **no Kubernetes API access** (consistent with
@@ -44,45 +43,23 @@ genuinely traffic-blocking checks here), and **healthz is the comprehensive dash
 
 ### Controller (controller-runtime manager)
 
-The manager serves `/healthz` and `/readyz` on `HealthProbeBindAddress`. We register:
-
-```go
-// liveness: process-local ping — never touches the API server or a downstream
-mgr.AddHealthzCheck("ping", healthz.Ping)
-// readiness: gate traffic on the webhook being able to serve (cert loaded, listener up)
-mgr.AddReadyzCheck("webhook", mgr.GetWebhookServer().StartedChecker())
-mgr.AddReadyzCheck("ping", healthz.Ping)
-```
+The manager serves `/healthz` and `/readyz` on its `HealthProbeBindAddress`. Liveness is a
+process-local ping that never touches the API server or a downstream. Readiness gates on the
+webhook server being able to serve (certificate loaded, listener up).
 
 Leader election does **not** gate readiness. A non-leader replica is healthy and ready, it is
 simply idle. (controller-runtime exports `leader_election_master_status` for that signal.)
 
 ### Relay (go-health)
 
-The wiring lives in [`internal/relay/health.go`](../internal/relay/health.go):
+Readiness gates Service endpoints on a single check: the SMTP listener is bound. Destination
+reachability is a `/healthz`-only check, never a readiness gate. Postfix queues and retries on a
+required-destination failure (see [relay.md](relay.md#delivery-contract)), so a flaky downstream
+must not drain the relay from its Service and stall all mail. The wiring lives in
+[`internal/relay/health.go`](../internal/relay/health.go).
 
-```go
-eng := core.NewEngine("iris-relay", "Iris relay data plane", core.WithLogger(logger))
-
-// readyz — gates Service endpoints. Only things that block accepting SMTP.
-eng.RegisterReadinessCheck(core.Check{Name: "smtp:listener", Run: listenerBoundCheck})
-
-// healthz-only — informational. Downstream reachability is NOT a readiness gate:
-// Postfix queues + retries on a required-destination failure (see relay.md#delivery-contract),
-// so a flaky downstream must not drain the relay from the Service and stall all mail.
-for _, d := range destinations {
-    eng.RegisterHealthCheck(core.Check{Name: "destination:" + d.Name, Run: destinationReachable(d)})
-}
-
-// Mount per-endpoint handlers on the admin mux.
-mux.Handle("/livez", healthhttp.LivezHandler(eng))
-mux.Handle("/readyz", healthhttp.ReadyzHandler(eng))
-mux.Handle("/healthz", healthhttp.HealthzHandler(eng))
-```
-
-Putting destination reachability on `/healthz` (not `/readyz`) is the same call `asm-relay` makes
-for its registry websocket, and it is the whole reason `RegisterCheck` vs `RegisterReadyCheck`
-exists.
+Putting destination reachability on `/healthz` rather than `/readyz` is the whole reason
+`go-health` separates health and readiness checks.
 
 ### Reloader
 
@@ -93,7 +70,7 @@ exists.
 
 ## Metrics
 
-Naming follows the philprime convention (`asm-relay`): an `iris_` prefix, declared as package-level
+Naming follows the philprime convention: an `iris_` prefix, declared as package-level
 collectors in an `internal/metrics` package and registered once in `init()`. Counters end in
 `_total`, durations in `_seconds` (histograms with `prometheus.DefBuckets` unless a domain range
 fits better). Keep label cardinality bounded. Never label by message-id, recipient, or sender.
@@ -105,12 +82,7 @@ controller-runtime's secure `:8443` TLS+authn serving, which is avoided for v1 t
 plumbing, and can be revisited if metrics are ever scraped across a trust boundary).
 
 The controller registers its collectors with **controller-runtime's** registry, not the global
-default one, so they serve on the manager's metrics endpoint:
-
-```go
-import "sigs.k8s.io/controller-runtime/pkg/metrics"
-func init() { metrics.Registry.MustRegister(relaysGauge, routeConflictsGauge, postfixRendersTotal) }
-```
+default one, so they serve on the manager's metrics endpoint.
 
 controller-runtime already provides the reconcile/workqueue/client/leader-election families for
 free, so **do not reimplement them**:
@@ -174,7 +146,7 @@ changes.
 ## Error reporting (Sentry)
 
 Sentry is the in-app error/trace channel, wired identically across all three binaries using the
-established philprime pattern (`bifrost`, `asm-relay`): `github.com/getsentry/sentry-go` +
+established philprime pattern (`bifrost`): `github.com/getsentry/sentry-go` +
 `github.com/getsentry/sentry-go/slog`. It is **opt-in** (`IRIS_SENTRY_ENABLED=false` by default) so
 local/dev and air-gapped installs run clean. v1 posture is **errors + logs only, tracing off**
 (`IRIS_SENTRY_ENABLE_TRACING=false`, `IRIS_SENTRY_TRACES_SAMPLE_RATE=0.0`). Operators opt into
@@ -183,34 +155,10 @@ so enabling tracing later never floods the quota with health traffic.
 
 ### Wiring
 
-Initialize as early as possible in `run()`, bridge it into slog, and flush on shutdown:
-
-```go
-if cfg.Sentry.Enabled {
-    err := sentry.Init(sentry.ClientOptions{
-        Dsn:              cfg.Sentry.DSN,
-        Environment:      cfg.Sentry.Environment,   // e.g. "production"
-        Release:          cfg.Sentry.Release,       // iris@<version>:<git-sha>, see below
-        Debug:            cfg.Sentry.Debug,
-        AttachStacktrace: cfg.Sentry.AttachStacktrace,
-        SampleRate:       cfg.Sentry.SampleRate,
-        EnableTracing:    cfg.Sentry.EnableTracing,
-        TracesSampleRate: cfg.Sentry.TracesSampleRate,
-        TracesSampler:    dropProbeSpans(cfg),       // 0.0 for /healthz /livez /readyz /metrics
-        BeforeSend:       enrichAndFilter,           // drop expected/noisy events
-    })
-    if err != nil {
-        fmt.Fprintf(os.Stderr, "sentry.Init: %s\n", err)
-    }
-    sentryHandler := sentryslog.Option{
-        EventLevel: []slog.Level{slog.LevelError},            // ERROR → Sentry issue
-        LogLevel:   []slog.Level{slog.LevelWarn, slog.LevelInfo}, // WARN/INFO → Sentry logs
-    }.NewSentryHandler(ctx)
-    logHandler = logging.NewMultiHandler(sentryHandler, logHandler) // fan out to terminal too
-}
-logger = slog.New(logHandler)
-defer sentry.Flush(2 * time.Second)
-```
+Sentry is initialized as early as possible in `run()`, only when enabled, then bridged into `slog`
+and flushed on shutdown. The Sentry slog handler maps `ERROR` records to Sentry issues and
+`WARN`/`INFO` records to Sentry logs. The `TracesSampler` (which drops probe and metrics spans) and
+`BeforeSend` (which drops expected or noisy events) are wired at init time.
 
 The `MultiHandler` (copied from the philprime house `internal/logging`) sends every record to both the
 terminal handler and the Sentry slog handler, so developers keep local visibility while production
@@ -243,11 +191,24 @@ exact image, matching the `version`/`commit`/`date` ldflags already used for the
 
 ### Configuration
 
-Sentry is configured per binary from `IRIS_SENTRY_*` env vars, defined with their defaults and
-validation in [`internal/config`](../internal/config/config.go) (the `Sentry` struct, mirroring
-asm-relay's `ConfigSentry`). It is disabled by default with tracing off, so local and air-gapped
-installs run clean. The settings surface as Helm values (chart-wide, with optional per-component
-override) and are injected as env on each Deployment.
+Sentry is configured per binary from the `IRIS_SENTRY_*` env vars below. It is disabled by default
+with tracing off, so local and air-gapped installs run clean. The settings surface as Helm values
+(chart-wide, with optional per-component override) and are injected as env on each Deployment.
+
+| Variable                         | Default | Purpose                                                                            |
+| -------------------------------- | ------- | ---------------------------------------------------------------------------------- |
+| `IRIS_SENTRY_ENABLED`            | `false` | Master switch. When false the SDK is not initialized and nothing is sent.          |
+| `IRIS_SENTRY_DSN`                | —       | Sentry project DSN. Required when enabled.                                         |
+| `IRIS_SENTRY_ENVIRONMENT`        | `local` | Environment tag on every event (for example `production`).                         |
+| `IRIS_SENTRY_RELEASE`            | —       | Release identifier. Defaults to the build's `iris@<version>:<git-sha>` when unset. |
+| `IRIS_SENTRY_DEBUG`              | `false` | Enables the Sentry SDK's own debug logging.                                        |
+| `IRIS_SENTRY_ATTACH_STACKTRACE`  | `true`  | Attaches stack traces to captured messages.                                        |
+| `IRIS_SENTRY_SAMPLE_RATE`        | `1.0`   | Error event sampling rate, from 0 to 1.                                            |
+| `IRIS_SENTRY_ENABLE_TRACING`     | `false` | Turns on performance tracing.                                                      |
+| `IRIS_SENTRY_TRACES_SAMPLE_RATE` | `0.0`   | Trace sampling rate, from 0 to 1. Only relevant when tracing is enabled.           |
+
+The `Sentry` struct in [`internal/config`](../internal/config/config.go) is the source of truth for
+the exact defaults and validation.
 
 ## Logging
 
