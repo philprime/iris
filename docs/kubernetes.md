@@ -1,6 +1,6 @@
 # Kubernetes API & Controller
 
-Iris follows standard controller conventions: kubebuilder scaffolding and Kubernetes API
+Iris follows standard controller conventions: a kubebuilder-style layout and markers, and Kubernetes API
 conventions (Kstatus-style conditions, `observedGeneration`, printer columns, CEL validation,
 finalizers, owner references, leader election, controller-runtime metrics).
 

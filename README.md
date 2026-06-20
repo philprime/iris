@@ -150,7 +150,7 @@ Once installed, point your domain's MX records at the LoadBalancer's public IP a
 - A single, stable public SMTP entrypoint per cluster (port 25, plus 587/465).
 - A declarative `Relay` CRD covering routing, inbound filtering, transform, and fan-out delivery.
 - A stateless data plane that leans on Postfix for the hard MTA concerns.
-- Standard controller conventions (kubebuilder scaffolding, Kubernetes API conventions).
+- Standard controller conventions (kubebuilder-style layout and markers, Kubernetes API conventions).
 
 **Non-goals (v1)**
 
