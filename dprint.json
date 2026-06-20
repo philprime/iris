@@ -1,6 +1,8 @@
 {
   "json": {},
-  "markdown": {},
+  "markdown": {
+    "textWrap": "maintain"
+  },
   "toml": {},
   "dockerfile": {},
   "yaml": {},
