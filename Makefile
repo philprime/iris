@@ -514,7 +514,7 @@ upgrade-deps:
 .PHONY: help
 help:
 	@echo "=============================================="
-	@echo "🌈 IRIS DEVELOPMENT COMMANDS"
+	@echo "✉️ IRIS DEVELOPMENT COMMANDS"
 	@echo "=============================================="
 	@echo ""
 	@awk 'BEGIN { desc = "" } \
