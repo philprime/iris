@@ -37,39 +37,36 @@ flowchart TB
     relaycr -.->|"reconciled into"| relay
 ```
 
-> **Status:** early development. The API group is `iris.philprime.dev/v1alpha1`. Expect breaking
-> changes while the API stabilizes.
+See [docs/architecture.md](docs/architecture.md) for the full design.
 
 ## Why Iris?
 
-Exposing a cluster to inbound email usually means hand-rolling a Postfix relay and wiring it to
-each consumer by hand. Iris makes that declarative and operator-managed.
+Plenty of the outside world still talks to software over email. Apple mails App Store
+invitations, payment processors send receipts, partners forward reports. Getting those messages
+into a Kubernetes cluster is the awkward part. Ingress controllers speak HTTP, not raw SMTP on
+port 25, so the usual answer is to stand up a Postfix box by hand and then write glue to get
+messages back out of it. You parse the MIME, check DKIM, decide whether it is spam, and POST the
+result somewhere. Every new consumer means another round of Postfix map edits and another one-off
+script.
 
-- **One stable entrypoint.** A single public IP (port 25, plus 587/465) for your cluster's MX
-  records, regardless of how many services consume mail.
-- **Declarative routing.** A `Relay` CR maps recipient addresses/domains to destinations. There
-  are no manual Postfix edits, and the controller compiles the maps and reloads the ingress only
-  when routes change.
-- **Inbound filtering & scoring.** Reject oversized messages, unknown senders, or messages that
-  fail DKIM, and accept/deny on a configurable heuristic score before anything is forwarded.
-- **Transform once, fan out anywhere.** Every message becomes a canonical JSON envelope, and each
-  destination optionally remaps it with Jsonnet and delivers over HTTP or SMTP.
-- **Lean on Postfix for the hard parts.** TLS, the queue, retry/backoff, and bounces stay in
-  Postfix. Everything Iris itself owns is stateless.
-- **At-least-once delivery.** Failed deliveries to `required` destinations return SMTP 4xx so
-  Postfix retries, and every delivery carries an idempotency key so downstreams can dedup.
+Iris turns that into something you declare. Postfix stays where it belongs and keeps doing what a
+real MTA is good at, including TLS, queueing, retry with backoff, and bounces, but you never edit
+its config by hand. You write a `Relay` that names the addresses you want and the destinations
+they go to. The controller compiles the routing and reconciles one relay pod per `Relay` that
+filters each message, normalizes it to a JSON envelope, and delivers it over HTTP or SMTP.
 
-## How it works
+What you get is an entrypoint that behaves like the rest of your cluster. There is one stable
+public IP for your MX records, routing changes by editing a resource instead of logging into a
+mail server, and the data plane stays stateless because the hard delivery guarantees live in
+Postfix. A failed delivery to a required destination comes back as an SMTP 4xx so Postfix retries
+the message, and every delivery carries an idempotency key so downstream services can dedup.
 
-1. Mail arrives on the public LoadBalancer Service and is accepted by Postfix.
-2. Postfix routes each recipient to the matching relay's in-cluster Service via generated
-   transport maps.
-3. The relay runs its pipeline (**filter → transform → fan out**) and reflects the result back
-   to Postfix as an SMTP status code.
-4. If a `required` destination fails, the relay returns SMTP 4xx and Postfix keeps the message in
-   its queue and retries with backoff. The relay holds no state.
-
-See [docs/architecture.md](docs/architecture.md) for the full design.
+Managed services solve the same problem well in their own setting. AWS SES inbound, for example,
+receives mail and hands it to S3, SNS, or Lambda, which is a good fit when your workloads already
+live in AWS and you want the provider to run the receiving side. Iris is the in-cluster
+counterpart. The entrypoint lives in your own cluster, stays portable across clouds, and delivers
+straight to the services you already run. Which one fits comes down to where your services already
+are, not to one being better than the other.
 
 ## Example
 
@@ -88,17 +85,19 @@ spec:
     - address: invites@invite.example.com # exact address (wins over domain)
     - domain: invite.example.com # any local-part on the domain
 
-  # Inbound filtering → relay rejects with SMTP 5xx before transforming (optional)
+  # Inbound filtering → relay rejects with SMTP 5xx before transforming (optional).
+  # Hard gates reject first. A message must then also clear the heuristic score.
   filters:
+    # Hard gates: all must pass
     maxMessageBytes: 26214400 # 25 MiB
     allowedSenderDomains: ["email.apple.com"]
-    requireDKIM: ["email.apple.com"] # DKIM d= must match one of these
-    minScore: 2 # accept if heuristic score >= minScore
+    requireDKIM: ["email.apple.com"] # a valid DKIM d= must match one of these
+    # Heuristic score: accept only when the summed signals reach minScore
+    minScore: 2
     scoreSignals: [
       fromDomain,
       messageIdDomain,
       dkimDomain,
-      authResults,
       bodyLinkDomain,
     ]
 
@@ -127,8 +126,8 @@ The data-plane pipeline, filter signals, canonical JSON envelope, and delivery c
 
 ## Installation
 
-Iris ships as container images and a Helm chart published to GitHub Container Registry. Install the
-chart into your cluster:
+Iris is distributed as container images and an OCI Helm chart on GitHub Container Registry. A
+default install needs cert-manager and a cluster that can provision `LoadBalancer` Services:
 
 ```sh
 helm install iris oci://ghcr.io/philprime/charts/iris \
@@ -136,60 +135,23 @@ helm install iris oci://ghcr.io/philprime/charts/iris \
   -n iris-system --create-namespace
 ```
 
-The chart installs the controller, CRDs, RBAC, the Postfix ingress tier, the LoadBalancer Service,
-the validating webhook, a ServiceMonitor, and a PodDisruptionBudget. Configure controller/Postfix
-replicas, the public exposure `mode`, and TLS/cert-manager settings via chart values. See
-[docs/distribution.md](docs/distribution.md) for artifacts, versioning, and the release process.
-
-Once installed, point your domain's MX records at the LoadBalancer's public IP and apply a `Relay`.
-
-## Goals & non-goals
-
-**Goals**
-
-- A single, stable public SMTP entrypoint per cluster (port 25, plus 587/465).
-- A declarative `Relay` CRD covering routing, inbound filtering, transform, and fan-out delivery.
-- A stateless data plane that leans on Postfix for the hard MTA concerns.
-- Standard controller conventions (kubebuilder-style layout and markers, Kubernetes API conventions).
-
-**Non-goals (v1)**
-
-- Automated relay→relay chaining (it's a manual pattern: point a relay's `smtp` destination at
-  another relay's Service).
-- Content-based routing (v1 fan-out broadcasts to all destinations).
-- A relay-owned durable queue (retries are delegated to the Postfix queue).
-- Outbound/relay-for-sending mail. Iris is inbound-only.
+See [docs/install.md](docs/install.md) for prerequisites, pointing your MX records at the ingress,
+configuration, and verifying the install.
 
 ## Documentation
 
-**Design**
+The full documentation lives in [`docs/`](docs/). Good places to start:
 
-| Doc                                       | Covers                                                                                                |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [architecture.md](docs/architecture.md)   | Components, data flow, public exposure, key properties                                                |
-| [crd-reference.md](docs/crd-reference.md) | Generated `Relay` CRD field reference (types, defaults, validation)                                   |
-| [kubernetes.md](docs/kubernetes.md)       | `Relay` CRD semantics, controller/reconcilers, conflict resolution, status, RBAC, webhook, Helm chart |
-| [relay.md](docs/relay.md)                 | Data plane: session pipeline, filters/scoring, transform, delivery contract, config format            |
-| [observability.md](docs/observability.md) | Health/readiness probes, Prometheus metrics, Sentry error reporting, logging                          |
-| [references.md](docs/references.md)       | Controllers studied for best practices + adopt/skip decisions                                         |
-
-**Contributing**
-
-| Doc                                     | Covers                                                               |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| [development.md](docs/development.md)   | Prerequisites, local setup, running with air/kind, debugging         |
-| [tooling.md](docs/tooling.md)           | Makefile targets, codegen, linters, formatting, pre-commit, renovate |
-| [testing.md](docs/testing.md)           | Unit, envtest, kind e2e, conventions                                 |
-| [ci.md](docs/ci.md)                     | GitHub Actions workflows                                             |
-| [distribution.md](docs/distribution.md) | Images, Helm chart, versioning, release process                      |
-| [conventions.md](docs/conventions.md)   | Repo layout, Go coding conventions, commits                          |
+- [architecture.md](docs/architecture.md) for how Iris is designed and how mail flows through it.
+- [install.md](docs/install.md) to deploy the chart into a cluster.
+- [development.md](docs/development.md) to set up a local environment.
 
 ## Contributing
 
-Contributions are welcome. Iris is a Go project driven entirely through its `Makefile`. Run
-`make help` to discover targets. Get a local environment running with `make init` and follow
-[docs/development.md](docs/development.md). Coding standards and commit conventions are in
-[docs/conventions.md](docs/conventions.md).
+Contributions are welcome. Iris is a Go project driven through its `Makefile`, so run `make help`
+to discover targets. Set up a local environment with `make init` and follow
+[development.md](docs/development.md). Coding standards and commit conventions are in
+[conventions.md](docs/conventions.md).
 
 ## License
 
