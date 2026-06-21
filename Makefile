@@ -121,7 +121,10 @@ setup-hooks:
 ## Install the helm-unittest plugin used by `make chart-test`
 #
 # Idempotent: skips the install when the plugin is already present. Warns and
-# skips (rather than failing) when helm itself is not installed.
+# skips (rather than failing) when helm itself is not installed. Passes
+# --verify=false when the running Helm supports it: Helm 4 gates plugin installs
+# behind a verification step this source does not support, while older Helm has
+# no such flag.
 .PHONY: setup-chart-tooling
 setup-chart-tooling:
 	@set -eu; $(LOG); \
@@ -132,7 +135,11 @@ setup-chart-tooling:
 		log_info "helm-unittest already installed."; \
 	else \
 		log_info "Installing helm-unittest $(HELM_UNITTEST_VERSION)..."; \
-		helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION); \
+		verify=""; \
+		if helm plugin install --help 2>&1 | grep -q -- '--verify'; then \
+			verify="--verify=false"; \
+		fi; \
+		helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION) $$verify; \
 	fi; \
 	end_group
 
