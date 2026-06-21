@@ -107,6 +107,10 @@ spec:
             - name: IRIS_POSTFIX_TLS_DIR
               value: /etc/postfix/tls
             {{- end }}
+            {{- if .Values.postfix.proxyProtocol.enabled }}
+            - name: IRIS_POSTFIX_PROXY_PROTOCOL
+              value: haproxy
+            {{- end }}
             {{- include "iris.sentryEnv" . | nindent 12 }}
           ports:
             - name: smtp

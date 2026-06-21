@@ -40,6 +40,16 @@ postfix:
     limits:
       cpu: 500m
       memory: 256Mi
+  # proxyProtocol makes Postfix read the PROXY protocol header from the
+  # connection so the real client IP is recovered when an upstream L4 load
+  # balancer fronts the SMTP listeners. Enable it only when every published
+  # listener sits behind a load balancer that prepends the header (Postfix then
+  # requires the header on all connections); otherwise senders that connect
+  # directly are rejected. Required for correct SPF/postscreen/DNSBL and maillog
+  # peer addresses on cloud/dedicated-server clusters where the Service is a
+  # NodePort behind a PROXY-protocol load balancer.
+  proxyProtocol:
+    enabled: false
   # tls provisions a serving certificate for opportunistic STARTTLS on the
   # public SMTP listeners (25/587/465). When disabled, Postfix serves
   # plaintext only.
