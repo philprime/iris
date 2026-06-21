@@ -73,3 +73,42 @@ func TestControllerValidationRejectsBadSampleRate(t *testing.T) {
 		t.Fatal("expected validation error for sample rate above 1.0")
 	}
 }
+
+// Feature: bind address parsing
+// Scenario: a "host:port" address is split into host and integer port
+//
+//	Given various bind addresses
+//	When  SplitHostPort parses them
+//	Then  valid addresses yield the host and port and malformed ones error
+func TestSplitHostPort(t *testing.T) {
+	tests := []struct {
+		name     string
+		addr     string
+		wantHost string
+		wantPort int
+		wantErr  bool
+	}{
+		{name: "all interfaces", addr: ":9443", wantHost: "", wantPort: 9443},
+		{name: "explicit host", addr: "0.0.0.0:8443", wantHost: "0.0.0.0", wantPort: 8443},
+		{name: "loopback", addr: "127.0.0.1:443", wantHost: "127.0.0.1", wantPort: 443},
+		{name: "missing port", addr: "bad", wantErr: true},
+		{name: "non-numeric port", addr: "host:nope", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			host, port, err := SplitHostPort(tt.addr)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("SplitHostPort(%q) = nil error, want error", tt.addr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("SplitHostPort(%q): %v", tt.addr, err)
+			}
+			if host != tt.wantHost || port != tt.wantPort {
+				t.Errorf("SplitHostPort(%q) = (%q, %d), want (%q, %d)", tt.addr, host, port, tt.wantHost, tt.wantPort)
+			}
+		})
+	}
+}

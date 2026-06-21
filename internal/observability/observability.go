@@ -97,6 +97,15 @@ func ReleaseID(version, gitSHA string) string {
 	return fmt.Sprintf("iris@%s:%s", version, gitSHA)
 }
 
+// ResolveRelease picks the Sentry release identifier: the ldflags-injected
+// value when set, otherwise one derived from the build version and commit.
+func ResolveRelease(injected, version, commit string) string {
+	if injected != "" {
+		return injected
+	}
+	return ReleaseID(version, commit)
+}
+
 // CaptureError reports an error to Sentry with the given tags attached to a
 // fresh scope, following the philprime house style: prefer the context-scoped
 // hub, fall back to the current hub, and attach context on a WithScope closure

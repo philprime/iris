@@ -14,67 +14,6 @@ import (
 	"testing"
 )
 
-// Feature: webhook bind address parsing
-// Scenario: a "host:port" address is split into host and integer port
-//
-//	Given various bind addresses
-//	When  splitHostPort parses them
-//	Then  valid addresses yield the host and port and malformed ones error
-func TestSplitHostPort(t *testing.T) {
-	tests := []struct {
-		name     string
-		addr     string
-		wantHost string
-		wantPort int
-		wantErr  bool
-	}{
-		{name: "all interfaces", addr: ":9443", wantHost: "", wantPort: 9443},
-		{name: "explicit host", addr: "0.0.0.0:8443", wantHost: "0.0.0.0", wantPort: 8443},
-		{name: "loopback", addr: "127.0.0.1:443", wantHost: "127.0.0.1", wantPort: 443},
-		{name: "missing port", addr: "bad", wantErr: true},
-		{name: "non-numeric port", addr: "host:nope", wantErr: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			host, port, err := splitHostPort(tt.addr)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("splitHostPort(%q) = nil error, want error", tt.addr)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("splitHostPort(%q): %v", tt.addr, err)
-			}
-			if host != tt.wantHost || port != tt.wantPort {
-				t.Errorf("splitHostPort(%q) = (%q, %d), want (%q, %d)", tt.addr, host, port, tt.wantHost, tt.wantPort)
-			}
-		})
-	}
-}
-
-// Feature: Sentry release resolution
-// Scenario: the ldflags-injected release wins, otherwise it is derived
-//
-//	Given the sentryRelease build var set or empty
-//	When  sentryReleaseID resolves the release
-//	Then  a set value is returned verbatim and an empty one falls back to
-//	      iris@<version>:<commit>
-func TestSentryReleaseID(t *testing.T) {
-	original := sentryRelease
-	t.Cleanup(func() { sentryRelease = original })
-
-	sentryRelease = ""
-	if got, want := sentryReleaseID(), "iris@dev:none"; got != want {
-		t.Errorf("sentryReleaseID() = %q, want %q", got, want)
-	}
-
-	sentryRelease = "iris@1.2.3:abc123"
-	if got, want := sentryReleaseID(), "iris@1.2.3:abc123"; got != want {
-		t.Errorf("sentryReleaseID() = %q, want %q", got, want)
-	}
-}
-
 // Feature: controller startup validation
 // Scenario: an invalid configuration aborts before the manager starts
 //

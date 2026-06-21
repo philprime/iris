@@ -14,6 +14,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/go-playground/validator/v10"
@@ -68,6 +70,20 @@ type Reloader struct {
 	WorkPath  string `env:"IRIS_RELOADER_WORK_PATH" envDefault:"/etc/postfix/maps" validate:"required"`
 	AdminAddr string `env:"IRIS_RELOADER_ADMIN_ADDR" envDefault:":8080" validate:"required"`
 	Sentry    Sentry
+}
+
+// SplitHostPort parses a "host:port" bind address into its host and integer
+// port. An empty host (for example ":9443") binds all interfaces.
+func SplitHostPort(addr string) (string, int, error) {
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", 0, err
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid port %q: %w", portStr, err)
+	}
+	return host, port, nil
 }
 
 // Load parses the environment into cfg (which must be a pointer to a config
