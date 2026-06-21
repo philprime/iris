@@ -31,7 +31,7 @@ jobs:
         run: make test
 
   e2e:
-    name: E2E Tests
+    name: Test E2E
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
