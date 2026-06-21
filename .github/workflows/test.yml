@@ -1,4 +1,4 @@
-name: test
+name: Test
 
 on:
   push:
@@ -6,42 +6,57 @@ on:
   pull_request:
   workflow_dispatch:
 
-concurrency:
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - name: make test
+          cache: true
+
+      - name: Run Tests
         run: make test
 
   e2e:
+    name: E2E Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
+
       - name: Install kind
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - uses: azure/setup-helm@v4
+
+      - name: Create kind cluster
+        uses: azure/setup-helm@v4
+
       - name: Install swaks
-        run: sudo apt-get update
-      - name: Install swaks package
-        run: sudo apt-get install -y swaks
-      - name: make test-e2e
+        run: sudo apt-get update && sudo apt-get install -y swaks
+
+      - name: Run E2E Tests
         run: make test-e2e
+
       - name: Teardown kind
         if: always()
         run: make kind-down
