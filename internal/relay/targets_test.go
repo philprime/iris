@@ -82,6 +82,87 @@ func TestBuildTargetsResolvesSMTP(t *testing.T) {
 	}
 }
 
+// Feature: target resolution
+// Scenario: a "user:password" SMTP credential is split into username and password
+//
+//	Given an SMTP destination whose auth secret holds "user:password"
+//	When  targets are built
+//	Then  the SMTP target carries both the username and the password
+func TestBuildTargetsSMTPCredentialUserPassword(t *testing.T) {
+	dir := t.TempDir()
+	writeMount(t, filepath.Join(dir, "secrets", "smtp-cred", "auth"), "mailer:s3cret")
+
+	cfg := Config{
+		Destinations: []v1alpha1.Destination{{
+			Name: "archive",
+			SMTP: &v1alpha1.SMTPDestination{
+				Host:          "archive.internal",
+				Port:          587,
+				StartTLS:      true,
+				AuthSecretRef: &v1alpha1.SecretKeyRef{Name: "smtp-cred", Key: "auth"},
+			},
+		}},
+	}
+
+	targets, err := BuildTargets(cfg, dir, nil)
+	if err != nil {
+		t.Fatalf("build targets: %v", err)
+	}
+	smtp := targets[0].SMTP
+	if smtp == nil || smtp.Username != "mailer" || smtp.Password != "s3cret" {
+		t.Errorf("smtp credential = %+v, want username mailer and password s3cret", smtp)
+	}
+	if !smtp.StartTLS {
+		t.Error("StartTLS should be carried through from the spec")
+	}
+}
+
+// Feature: target resolution
+// Scenario: a secret without a colon is treated as a bare password
+func TestBuildTargetsSMTPCredentialPasswordOnly(t *testing.T) {
+	dir := t.TempDir()
+	writeMount(t, filepath.Join(dir, "secrets", "smtp-cred", "auth"), "just-a-password")
+
+	cfg := Config{
+		Destinations: []v1alpha1.Destination{{
+			Name: "archive",
+			SMTP: &v1alpha1.SMTPDestination{
+				Host:          "archive.internal",
+				Port:          25,
+				AuthSecretRef: &v1alpha1.SecretKeyRef{Name: "smtp-cred", Key: "auth"},
+			},
+		}},
+	}
+
+	targets, err := BuildTargets(cfg, dir, nil)
+	if err != nil {
+		t.Fatalf("build targets: %v", err)
+	}
+	smtp := targets[0].SMTP
+	if smtp == nil || smtp.Username != "" || smtp.Password != "just-a-password" {
+		t.Errorf("smtp credential = %+v, want empty username and the bare password", smtp)
+	}
+}
+
+// Feature: target resolution
+// Scenario: a missing SMTP auth secret fails target building
+func TestBuildTargetsSMTPMissingSecretErrors(t *testing.T) {
+	cfg := Config{
+		Destinations: []v1alpha1.Destination{{
+			Name: "archive",
+			SMTP: &v1alpha1.SMTPDestination{
+				Host:          "archive.internal",
+				Port:          25,
+				AuthSecretRef: &v1alpha1.SecretKeyRef{Name: "absent", Key: "auth"},
+			},
+		}},
+	}
+
+	if _, err := BuildTargets(cfg, t.TempDir(), nil); err == nil {
+		t.Fatal("expected an error when the SMTP auth secret is missing")
+	}
+}
+
 func writeMount(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

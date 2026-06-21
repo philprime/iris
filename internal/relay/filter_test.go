@@ -215,3 +215,34 @@ func TestEvaluateBodyLinkSignal(t *testing.T) {
 		t.Errorf("expected body-link signal to score 1 and accept, got %+v", d)
 	}
 }
+
+// Feature: sender hard rule
+// Scenario: SenderAllowed gates the envelope sender against the allow list
+//
+//	Given various filter configurations and envelope senders
+//	When  SenderAllowed evaluates each
+//	Then  an empty allow list permits anyone, a matching domain passes, and a
+//	      non-matching or address-less sender is denied
+func TestSenderAllowed(t *testing.T) {
+	allow := &v1alpha1.Filters{AllowedSenderDomains: []string{"email.apple.com"}}
+	tests := []struct {
+		name    string
+		filters *v1alpha1.Filters
+		from    string
+		want    bool
+	}{
+		{name: "nil filters", filters: nil, from: "anyone@evil.example", want: true},
+		{name: "empty allow list", filters: &v1alpha1.Filters{}, from: "anyone@evil.example", want: true},
+		{name: "matching domain", filters: allow, from: "noreply@email.apple.com", want: true},
+		{name: "subdomain", filters: allow, from: "a@mx.email.apple.com", want: true},
+		{name: "non-matching domain", filters: allow, from: "attacker@evil.example", want: false},
+		{name: "address without domain", filters: allow, from: "no-at-sign", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SenderAllowed(tt.filters, tt.from); got != tt.want {
+				t.Errorf("SenderAllowed(%q) = %v, want %v", tt.from, got, tt.want)
+			}
+		})
+	}
+}

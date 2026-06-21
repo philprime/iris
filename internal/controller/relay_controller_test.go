@@ -166,6 +166,114 @@ func TestRelayReconcileMountsSecretsAndTransforms(t *testing.T) {
 	}
 }
 
+// Feature: deployment availability
+// Scenario: availability is read from the Available condition, then replicas
+//
+//	Given deployments in various states
+//	When  deploymentAvailable inspects them
+//	Then  the Available condition wins when present, otherwise the available
+//	      replica count decides
+func TestDeploymentAvailable(t *testing.T) {
+	tests := []struct {
+		name string
+		dep  appsv1.Deployment
+		want bool
+	}{
+		{
+			name: "available condition true",
+			dep: appsv1.Deployment{Status: appsv1.DeploymentStatus{Conditions: []appsv1.DeploymentCondition{
+				{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue},
+			}}},
+			want: true,
+		},
+		{
+			name: "available condition false",
+			dep: appsv1.Deployment{Status: appsv1.DeploymentStatus{Conditions: []appsv1.DeploymentCondition{
+				{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionFalse},
+			}}},
+			want: false,
+		},
+		{
+			name: "no condition but replicas available",
+			dep:  appsv1.Deployment{Status: appsv1.DeploymentStatus{AvailableReplicas: 2}},
+			want: true,
+		},
+		{
+			name: "no condition and no replicas",
+			dep:  appsv1.Deployment{Status: appsv1.DeploymentStatus{AvailableReplicas: 0}},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := deploymentAvailable(&tt.dep); got != tt.want {
+				t.Errorf("deploymentAvailable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Feature: readiness summary
+// Scenario: Ready reflects the programmed, conflict, and availability conditions
+//
+//	Given relays with different owned-condition combinations
+//	When  summarizeReady derives the Ready condition
+//	Then  Ready is true only when programmed, conflict-free, and available, and
+//	      otherwise carries the most specific reason
+func TestSummarizeReady(t *testing.T) {
+	cond := func(condType string, status metav1.ConditionStatus) metav1.Condition {
+		return metav1.Condition{Type: condType, Status: status, Reason: "Test"}
+	}
+	tests := []struct {
+		name       string
+		conditions []metav1.Condition
+		wantStatus metav1.ConditionStatus
+		wantReason string
+	}{
+		{
+			name: "all good",
+			conditions: []metav1.Condition{
+				cond(conditionProgrammed, metav1.ConditionTrue),
+				cond(conditionConflict, metav1.ConditionFalse),
+				cond(conditionDeploymentAvailable, metav1.ConditionTrue),
+			},
+			wantStatus: metav1.ConditionTrue,
+			wantReason: "Ready",
+		},
+		{
+			name: "conflict wins",
+			conditions: []metav1.Condition{
+				cond(conditionProgrammed, metav1.ConditionTrue),
+				cond(conditionConflict, metav1.ConditionTrue),
+				cond(conditionDeploymentAvailable, metav1.ConditionTrue),
+			},
+			wantStatus: metav1.ConditionFalse,
+			wantReason: "Conflict",
+		},
+		{
+			name:       "not programmed",
+			conditions: []metav1.Condition{cond(conditionDeploymentAvailable, metav1.ConditionTrue)},
+			wantStatus: metav1.ConditionFalse,
+			wantReason: "NotProgrammed",
+		},
+		{
+			name:       "deployment unavailable",
+			conditions: []metav1.Condition{cond(conditionProgrammed, metav1.ConditionTrue)},
+			wantStatus: metav1.ConditionFalse,
+			wantReason: "DeploymentUnavailable",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rel := &v1alpha1.Relay{Status: v1alpha1.RelayStatus{Conditions: tt.conditions}}
+			got := summarizeReady(rel)
+			if got.Status != tt.wantStatus || got.Reason != tt.wantReason {
+				t.Errorf("summarizeReady() = (%s, %s), want (%s, %s)", got.Status, got.Reason, tt.wantStatus, tt.wantReason)
+			}
+		})
+	}
+}
+
 func volumeForSecret(volumes []corev1.Volume, secretName string) string {
 	for _, v := range volumes {
 		if v.Secret != nil && v.Secret.SecretName == secretName {

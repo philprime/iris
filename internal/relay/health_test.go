@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	healthhttp "github.com/kula-app/go-health/adapters/http"
@@ -82,5 +83,60 @@ func TestHealthDestinationReachable(t *testing.T) {
 	results := destinationReachable(context.Background(), &target)
 	if len(results) != 1 || results[0].Status != core.StatusPass {
 		t.Errorf("destination result = %+v, want pass", results)
+	}
+}
+
+// Feature: relay health
+// Scenario: an unreachable HTTP destination is reported failing
+func TestHealthDestinationHTTPUnreachable(t *testing.T) {
+	target := Target{Name: "down", HTTP: &HTTPTarget{URL: "http://127.0.0.1:1/down", Client: http.DefaultClient}}
+	results := destinationReachable(context.Background(), &target)
+	if len(results) != 1 || results[0].Status != core.StatusFail {
+		t.Errorf("destination result = %+v, want fail", results)
+	}
+}
+
+// Feature: relay health
+// Scenario: a reachable SMTP destination is reported healthy
+func TestHealthDestinationSMTPReachable(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+	host, portStr, _ := net.SplitHostPort(listener.Addr().String())
+	port, _ := strconv.Atoi(portStr)
+
+	target := Target{Name: "smtp-up", SMTP: &SMTPTarget{Host: host, Port: port}}
+	results := destinationReachable(context.Background(), &target)
+	if len(results) != 1 || results[0].Status != core.StatusPass {
+		t.Errorf("destination result = %+v, want pass", results)
+	}
+}
+
+// Feature: relay health
+// Scenario: an unreachable SMTP destination is reported failing
+func TestHealthDestinationSMTPUnreachable(t *testing.T) {
+	target := Target{Name: "smtp-down", SMTP: &SMTPTarget{Host: "127.0.0.1", Port: 1}}
+	results := destinationReachable(context.Background(), &target)
+	if len(results) != 1 || results[0].Status != core.StatusFail {
+		t.Errorf("destination result = %+v, want fail", results)
+	}
+}
+
+// Feature: relay health
+// Scenario: a target with no delivery method is reported failing
+//
+//	Given a target with neither an HTTP nor an SMTP destination
+//	When  reachability is probed
+//	Then  it fails with a descriptive output
+func TestHealthDestinationNoMethod(t *testing.T) {
+	target := Target{Name: "empty"}
+	results := destinationReachable(context.Background(), &target)
+	if len(results) != 1 || results[0].Status != core.StatusFail {
+		t.Fatalf("destination result = %+v, want fail", results)
+	}
+	if results[0].Output != "destination has no delivery method" {
+		t.Errorf("output = %q, want the no-delivery-method message", results[0].Output)
 	}
 }
