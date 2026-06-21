@@ -20,10 +20,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	healthhttp "github.com/kula-app/go-health/adapters/http"
-	"github.com/kula-app/go-health/core"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/philprime/iris/internal/adminserver"
 	"github.com/philprime/iris/internal/config"
 	"github.com/philprime/iris/internal/observability"
 )
@@ -38,7 +36,7 @@ func run(parent context.Context) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 	if cfg.Sentry.Release == "" {
-		cfg.Sentry.Release = sentryReleaseID()
+		cfg.Sentry.Release = observability.ResolveRelease(sentryRelease, version, commit)
 	}
 
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
@@ -48,14 +46,14 @@ func run(parent context.Context) error {
 	logger, flush := observability.Setup(ctx, cfg.Sentry, terminal)
 	defer flush()
 
-	adminServer := &http.Server{Addr: cfg.AdminAddr, Handler: adminMux(newHealthEngine(logger)), ReadHeaderTimeout: 5 * time.Second}
+	adminServer := adminserver.New(cfg.AdminAddr, newHealthEngine(logger))
 	go func() {
 		logger.InfoContext(ctx, "starting reloader admin server", slog.String("addr", cfg.AdminAddr))
 		if err := adminServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.ErrorContext(ctx, "admin server failed", slog.Any("error", err))
 		}
 	}()
-	defer shutdownAdmin(adminServer)
+	defer adminserver.Shutdown(adminServer)
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -96,27 +94,4 @@ func run(parent context.Context) error {
 			logger.InfoContext(ctx, "reloaded postfix maps")
 		}
 	}
-}
-
-func adminMux(eng *core.Engine) *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.Handle("/livez", healthhttp.LivezHandler(eng))
-	mux.Handle("/readyz", healthhttp.ReadyzHandler(eng))
-	mux.Handle("/metrics", promhttp.Handler())
-	return mux
-}
-
-func shutdownAdmin(server *http.Server) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = server.Shutdown(ctx)
-}
-
-// sentryReleaseID resolves the Sentry release from the ldflags value or the
-// build version and commit.
-func sentryReleaseID() string {
-	if sentryRelease != "" {
-		return sentryRelease
-	}
-	return observability.ReleaseID(version, commit)
 }

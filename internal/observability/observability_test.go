@@ -45,6 +45,22 @@ func TestReleaseID(t *testing.T) {
 	}
 }
 
+// Feature: Sentry release resolution
+// Scenario: the injected release wins, otherwise it is derived
+//
+//	Given an injected release that is set or empty
+//	When  ResolveRelease picks the release
+//	Then  a set value is returned verbatim and an empty one falls back to
+//	      iris@<version>:<commit>
+func TestResolveRelease(t *testing.T) {
+	if got := ResolveRelease("iris@9.9.9:deadbee", "dev", "none"); got != "iris@9.9.9:deadbee" {
+		t.Errorf("ResolveRelease(injected) = %q, want iris@9.9.9:deadbee", got)
+	}
+	if got := ResolveRelease("", "dev", "none"); got != "iris@dev:none" {
+		t.Errorf("ResolveRelease(empty) = %q, want iris@dev:none", got)
+	}
+}
+
 // Feature: observability setup
 // Scenario: with Sentry disabled the logger is terminal-only
 //

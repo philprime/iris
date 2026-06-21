@@ -12,9 +12,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
-	"strconv"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,7 +36,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 	if cfg.Sentry.Release == "" {
-		cfg.Sentry.Release = sentryReleaseID()
+		cfg.Sentry.Release = observability.ResolveRelease(sentryRelease, version, commit)
 	}
 
 	terminal := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
@@ -54,7 +52,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("register iris scheme: %w", err)
 	}
 
-	webhookHost, webhookPort, err := splitHostPort(cfg.WebhookAddr)
+	webhookHost, webhookPort, err := config.SplitHostPort(cfg.WebhookAddr)
 	if err != nil {
 		return fmt.Errorf("parse webhook address %q: %w", cfg.WebhookAddr, err)
 	}
@@ -117,27 +115,4 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("run manager: %w", err)
 	}
 	return nil
-}
-
-// sentryReleaseID resolves the Sentry release: the ldflags-injected value when
-// set, otherwise derived from the build version and commit.
-func sentryReleaseID() string {
-	if sentryRelease != "" {
-		return sentryRelease
-	}
-	return observability.ReleaseID(version, commit)
-}
-
-// splitHostPort parses a "host:port" bind address into its host and integer
-// port. An empty host (for example ":9443") binds all interfaces.
-func splitHostPort(addr string) (string, int, error) {
-	host, portStr, err := net.SplitHostPort(addr)
-	if err != nil {
-		return "", 0, err
-	}
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return "", 0, fmt.Errorf("invalid port %q: %w", portStr, err)
-	}
-	return host, port, nil
 }
