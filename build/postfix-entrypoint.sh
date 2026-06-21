@@ -47,6 +47,19 @@ if [ -n "$tls_dir" ] && [ -f "${tls_dir}/tls.crt" ] && [ -f "${tls_dir}/tls.key"
 	postconf -P "smtps/inet/smtpd_tls_security_level=encrypt"
 fi
 
+# Read the PROXY protocol header from an upstream L4 load balancer when one
+# fronts the SMTP listeners. A plain TCP load balancer rewrites the source
+# address, so without this every connection appears to originate from the load
+# balancer and Postfix's client-IP-based checks (SPF, postscreen, DNSBL) and
+# the maillog all see the wrong peer. The value is the upstream proxy protocol
+# Postfix should expect; Postfix only implements "haproxy". Set globally so it
+# applies to the smtp (25), submission (587) and smtps (465) services alike,
+# which are all published through the same load balancer.
+proxy_protocol="${IRIS_POSTFIX_PROXY_PROTOCOL:-}"
+if [ -n "$proxy_protocol" ]; then
+	postconf -e "smtpd_upstream_proxy_protocol=${proxy_protocol}"
+fi
+
 /usr/local/bin/iris-reloader &
 
 exec /scripts/run.sh "$@"

@@ -59,6 +59,9 @@ documents every value and its default. The settings you are most likely to touch
   `loadBalancerIP` or `nodePorts` when applicable).
 - `postfix.tls`: opportunistic STARTTLS on the public listeners. Off by default, so Postfix serves
   plaintext until you enable it.
+- `postfix.proxyProtocol`: read the PROXY protocol header so the real client IP survives an upstream
+  L4 load balancer. Enable it when the listeners sit behind a PROXY-protocol load balancer (commonly
+  with `exposure.service.type=NodePort`); leave it off for direct connections.
 - `webhook` and its `certManager` settings: how the validating webhook is served.
 - `metrics.serviceMonitor`: scraping by the Prometheus operator.
 - `sentry`: opt-in error reporting on every component.

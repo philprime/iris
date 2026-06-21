@@ -125,3 +125,10 @@ When on, cert-manager provisions the serving certificate the same way as the web
 Issuer by default, or `postfix.tls.certManager.issuerRef` for a real one), the secret is mounted
 into the Postfix pod, and the image entrypoint enables TLS at level `may`. Senders that do not offer
 TLS still deliver in plaintext.
+
+`postfix.proxyProtocol.enabled` makes Postfix read the PROXY protocol header so the real client IP
+survives an upstream L4 load balancer that rewrites the source address (e.g. a NodePort Service
+fronted by a cloud/dedicated-server TCP load balancer). Without it the client-IP checks (SPF,
+postscreen, DNSBL) and the maillog all see the load balancer instead of the sender. Enable it only
+when **every** published listener is behind a load balancer that prepends the header — Postfix then
+requires the header on all connections, so senders that reach Postfix directly are rejected.

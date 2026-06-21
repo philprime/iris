@@ -1,0 +1,30 @@
+suite: postfix PROXY protocol
+templates:
+  - templates/postfix.yaml
+release:
+  name: iris
+  namespace: iris-system
+tests:
+  - it: does not set the PROXY protocol env by default
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IRIS_POSTFIX_PROXY_PROTOCOL
+            value: haproxy
+
+  - it: sets the PROXY protocol env when enabled
+    set:
+      postfix.proxyProtocol.enabled: true
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IRIS_POSTFIX_PROXY_PROTOCOL
+            value: haproxy
