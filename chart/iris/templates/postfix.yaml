@@ -159,8 +159,10 @@ metadata:
   {{- end }}
 spec:
   type: {{ .Values.exposure.service.type }}
+  {{- if eq .Values.exposure.service.type "ClusterIP" }}
   {{- with .Values.exposure.service.clusterIP }}
   clusterIP: {{ . | quote }}
+  {{- end }}
   {{- end }}
   {{- if eq .Values.exposure.service.type "LoadBalancer" }}
   {{- with .Values.exposure.service.loadBalancerIP }}

@@ -75,8 +75,9 @@ exposure:
     # targets the in-cluster Service.
     type: LoadBalancer
     annotations: {}
-    # clusterIP pins the cluster-internal IP. Leave empty to let Kubernetes
-    # allocate one. Set to "None" for a headless Service.
+    # clusterIP pins the cluster-internal IP, and is only applied when type is
+    # ClusterIP. Leave empty to let Kubernetes allocate one. Set to "None" for a
+    # headless Service ("None" is invalid for NodePort/LoadBalancer types).
     clusterIP: ""
     # loadBalancerIP pins a stable public IP for MX records when supported.
     # Only applied when type is LoadBalancer.

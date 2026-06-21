@@ -119,6 +119,20 @@ tests:
           path: spec.clusterIP
           value: None
 
+  - it: ignores clusterIP for non-ClusterIP types
+    set:
+      exposure.service.type: NodePort
+      exposure.service.clusterIP: None
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+      - notExists:
+          path: spec.clusterIP
+
   - it: renders no Service when service is disabled
     set:
       exposure.service.enabled: false
