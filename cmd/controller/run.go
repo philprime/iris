@@ -15,7 +15,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -66,8 +65,6 @@ func run(ctx context.Context) error {
 		HealthProbeBindAddress: cfg.HealthAddr,
 		LeaderElection:         cfg.LeaderElect,
 		LeaderElectionID:       "iris-controller.philprime.dev",
-		LeaseDuration:          ptr(15 * time.Second),
-		RenewDeadline:          ptr(10 * time.Second),
 		WebhookServer:          webhook.NewServer(webhook.Options{Host: webhookHost, Port: webhookPort}),
 	})
 	if err != nil {
@@ -121,8 +118,6 @@ func run(ctx context.Context) error {
 	}
 	return nil
 }
-
-func ptr[T any](v T) *T { return &v }
 
 // sentryReleaseID resolves the Sentry release: the ldflags-injected value when
 // set, otherwise derived from the build version and commit.
