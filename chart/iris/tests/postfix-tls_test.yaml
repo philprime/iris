@@ -1,0 +1,104 @@
+suite: postfix TLS certificate
+templates:
+  - templates/postfix.yaml
+release:
+  name: iris
+  namespace: iris-system
+tests:
+  - it: renders no Certificate when TLS is disabled
+    asserts:
+      - containsDocument:
+          kind: Certificate
+          apiVersion: cert-manager.io/v1
+        not: true
+
+  - it: uses the self-signed issuer and in-cluster SANs by default
+    set:
+      postfix.tls.enabled: true
+    documentSelector:
+      path: kind
+      value: Certificate
+    asserts:
+      - contains:
+          path: spec.dnsNames
+          content: iris-iris-postfix.iris-system.svc
+      - contains:
+          path: spec.dnsNames
+          content: iris-iris-postfix.iris-system.svc.cluster.local
+      - equal:
+          path: spec.issuerRef.name
+          value: iris-iris-postfix-selfsigned
+      - equal:
+          path: spec.issuerRef.kind
+          value: Issuer
+
+  - it: provisions a self-signed Issuer by default
+    set:
+      postfix.tls.enabled: true
+    documentSelector:
+      path: kind
+      value: Issuer
+    asserts:
+      - equal:
+          path: metadata.name
+          value: iris-iris-postfix-selfsigned
+
+  - it: appends extra dnsNames to the in-cluster SANs for the self-signed issuer
+    set:
+      postfix.tls.enabled: true
+      postfix.tls.dnsNames:
+        - mail.example.com
+    documentSelector:
+      path: kind
+      value: Certificate
+    asserts:
+      - contains:
+          path: spec.dnsNames
+          content: iris-iris-postfix.iris-system.svc
+      - contains:
+          path: spec.dnsNames
+          content: mail.example.com
+
+  - it: uses only the public SANs and the external issuer when issuerRef is set
+    set:
+      postfix.tls.enabled: true
+      postfix.tls.dnsNames:
+        - inbound.smtp.kula.app
+      postfix.tls.certManager.issuerRef.name: letsencrypt-production
+      postfix.tls.certManager.issuerRef.kind: ClusterIssuer
+    documentSelector:
+      path: kind
+      value: Certificate
+    asserts:
+      - equal:
+          path: spec.dnsNames
+          value:
+            - inbound.smtp.kula.app
+      - equal:
+          path: spec.issuerRef.name
+          value: letsencrypt-production
+      - equal:
+          path: spec.issuerRef.kind
+          value: ClusterIssuer
+
+  - it: does not create a self-signed Issuer when an external issuerRef is set
+    set:
+      postfix.tls.enabled: true
+      postfix.tls.dnsNames:
+        - inbound.smtp.kula.app
+      postfix.tls.certManager.issuerRef.name: letsencrypt-production
+      postfix.tls.certManager.issuerRef.kind: ClusterIssuer
+    asserts:
+      - containsDocument:
+          kind: Issuer
+          apiVersion: cert-manager.io/v1
+        not: true
+
+  - it: fails fast when an external issuerRef is set without public dnsNames
+    set:
+      postfix.tls.enabled: true
+      postfix.tls.certManager.issuerRef.name: letsencrypt-production
+      postfix.tls.certManager.issuerRef.kind: ClusterIssuer
+    asserts:
+      - failedTemplate:
+          errorMessage: "postfix.tls.dnsNames must list the public MX hostname(s) when postfix.tls.certManager.issuerRef references an external (e.g. ACME) issuer, which cannot validate in-cluster .svc names."

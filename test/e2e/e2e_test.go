@@ -16,6 +16,7 @@ terms. SPDX-License-Identifier: FSL-1.1-MIT
 package e2e
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -53,6 +54,11 @@ const (
 	retryRelay  = "e2e-retry"
 	happyDomain = "happy.example.com"
 	retryDomain = "retry.example.com"
+	// smtpNodePort is the pinned Postfix SMTP node port. The Makefile deploys the
+	// chart with exposure.service.type=NodePort and this value, and the e2e kind
+	// config (test/e2e/kind.yaml) maps it to the same host port so the suite can
+	// reach the ingress through a real node port.
+	smtpNodePort = 30025
 )
 
 var k8s client.Client
@@ -225,6 +231,67 @@ func sendThroughPostfix(t *testing.T, to, marker string) string {
 		return fmt.Sprintf("swaks error: %v\n%s\nport-forward log:\n%s", err, out, pfErr.String())
 	}
 	return out
+}
+
+// Feature: NodePort exposure
+// Scenario: the chart publishes Postfix through a NodePort Service with the pinned node ports
+func TestPostfixServiceIsNodePort(t *testing.T) {
+	var svc corev1.Service
+	if err := k8s.Get(context.Background(), client.ObjectKey{Namespace: namespace, Name: postfixService}, &svc); err != nil {
+		t.Fatalf("get postfix service %q: %v", postfixService, err)
+	}
+	if svc.Spec.Type != corev1.ServiceTypeNodePort {
+		t.Fatalf("expected Service type NodePort, got %q", svc.Spec.Type)
+	}
+	want := map[string]int32{"smtp": 30025, "submission": 30587, "smtps": 30465}
+	for _, p := range svc.Spec.Ports {
+		expected, ok := want[p.Name]
+		if !ok {
+			continue
+		}
+		if p.NodePort != expected {
+			t.Errorf("port %q: expected nodePort %d, got %d", p.Name, expected, p.NodePort)
+		}
+		delete(want, p.Name)
+	}
+	if len(want) != 0 {
+		t.Fatalf("Service is missing expected named ports with pinned node ports: %v", want)
+	}
+}
+
+// Feature: NodePort exposure
+// Scenario: the Postfix SMTP listener is reachable through the mapped node port
+func TestSMTPReachableViaNodePort(t *testing.T) {
+	addr := fmt.Sprintf("localhost:%d", smtpNodePort)
+	// The kind config maps the node port to the same host port. Retry briefly:
+	// Postfix may still be starting when the suite begins.
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		banner, err := readSMTPBanner(addr, 5*time.Second)
+		if err == nil && strings.HasPrefix(banner, "220") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no SMTP 220 banner on node port %s (lastErr=%v, banner=%q)", addr, err, banner)
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+// readSMTPBanner dials addr, reads the SMTP greeting line, and politely quits.
+func readSMTPBanner(addr string, timeout time.Duration) (string, error) {
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetReadDeadline(time.Now().Add(timeout))
+	line, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		return line, err
+	}
+	_, _ = conn.Write([]byte("QUIT\r\n"))
+	return strings.TrimSpace(line), nil
 }
 
 // Feature: delivery contract

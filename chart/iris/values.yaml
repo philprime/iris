@@ -63,12 +63,33 @@ postfix:
 
 # exposure controls how the Postfix ingress is published.
 exposure:
-  # mode is loadBalancer (default) or none (operator wires their own Service).
-  mode: loadBalancer
   service:
+    # enabled toggles whether the chart renders the Postfix Service. Set it to
+    # false to wire your own front Service to the Postfix pods.
+    enabled: true
+    # type is the Kubernetes Service type for the ingress: ClusterIP, NodePort,
+    # or LoadBalancer. Use LoadBalancer (the default) on clouds that provision
+    # one for a stable public IP. Use NodePort when an external load balancer
+    # forwards the SMTP ports to fixed node ports (e.g. a bare-metal /
+    # dedicated-server cluster). Use ClusterIP when external L4 infrastructure
+    # targets the in-cluster Service.
+    type: LoadBalancer
     annotations: {}
+    # clusterIP pins the cluster-internal IP. Leave empty to let Kubernetes
+    # allocate one. Set to "None" for a headless Service.
+    clusterIP: ""
     # loadBalancerIP pins a stable public IP for MX records when supported.
+    # Only applied when type is LoadBalancer.
     loadBalancerIP: ""
+    # nodePorts pins the host ports when type is NodePort (must be within the
+    # cluster's node-port range, typically 30000-32767). Leave a value empty to
+    # let Kubernetes allocate one.
+    nodePorts:
+      smtp: ""
+      submission: ""
+      smtps: ""
+  # ports are the SMTP listener ports, shared by the Service and the Postfix
+  # container.
   ports:
     smtp: 25
     submission: 587

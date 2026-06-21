@@ -1,0 +1,21 @@
+# kind cluster config for the e2e suite (make test-e2e).
+#
+# The suite deploys the chart with exposure.service.type=NodePort and the node
+# ports below, then reaches the Postfix SMTP ingress through a real node port.
+# These mappings publish those node ports on the host so the suite (running on
+# the host) can connect to them. Keep the node ports in sync with the
+# exposure.service.nodePorts values set by the test-e2e target in the Makefile.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30025
+        hostPort: 30025
+        protocol: TCP
+      - containerPort: 30587
+        hostPort: 30587
+        protocol: TCP
+      - containerPort: 30465
+        hostPort: 30465
+        protocol: TCP

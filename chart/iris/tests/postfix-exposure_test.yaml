@@ -1,0 +1,129 @@
+suite: postfix exposure
+templates:
+  - templates/postfix.yaml
+release:
+  name: iris
+  namespace: iris-system
+tests:
+  - it: defaults to a LoadBalancer Service with no node ports
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+      - notExists:
+          path: spec.ports[0].nodePort
+      - notExists:
+          path: spec.ports[1].nodePort
+      - notExists:
+          path: spec.ports[2].nodePort
+      - notExists:
+          path: spec.loadBalancerIP
+      - notExists:
+          path: spec.clusterIP
+
+  - it: pins loadBalancerIP only in LoadBalancer type
+    set:
+      exposure.service.type: LoadBalancer
+      exposure.service.loadBalancerIP: 203.0.113.10
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+      - equal:
+          path: spec.loadBalancerIP
+          value: 203.0.113.10
+
+  - it: renders a NodePort Service with pinned node ports
+    set:
+      exposure.service.type: NodePort
+      exposure.service.nodePorts.smtp: 30025
+      exposure.service.nodePorts.submission: 30587
+      exposure.service.nodePorts.smtps: 30465
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+      - notExists:
+          path: spec.loadBalancerIP
+      - contains:
+          path: spec.ports
+          content:
+            name: smtp
+            nodePort: 30025
+          any: true
+      - contains:
+          path: spec.ports
+          content:
+            name: submission
+            nodePort: 30587
+          any: true
+      - contains:
+          path: spec.ports
+          content:
+            name: smtps
+            nodePort: 30465
+          any: true
+
+  - it: lets Kubernetes allocate node ports when nodePorts are empty
+    set:
+      exposure.service.type: NodePort
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+      - notExists:
+          path: spec.ports[0].nodePort
+      - notExists:
+          path: spec.ports[1].nodePort
+      - notExists:
+          path: spec.ports[2].nodePort
+
+  - it: renders a ClusterIP Service and ignores loadBalancerIP and node ports
+    set:
+      exposure.service.type: ClusterIP
+      exposure.service.loadBalancerIP: 203.0.113.10
+      exposure.service.nodePorts.smtp: 30025
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - notExists:
+          path: spec.loadBalancerIP
+      - notExists:
+          path: spec.ports[0].nodePort
+
+  - it: pins clusterIP when set
+    set:
+      exposure.service.type: ClusterIP
+      exposure.service.clusterIP: None
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.clusterIP
+          value: None
+
+  - it: renders no Service when service is disabled
+    set:
+      exposure.service.enabled: false
+    asserts:
+      - containsDocument:
+          kind: Service
+          apiVersion: v1
+        not: true

@@ -117,7 +117,7 @@ election, and events. Relay pods need **no** Kubernetes API access.
 `chart/iris/` installs the controller, its RBAC, the CRDs, and the Postfix ingress tier, mirroring
 the ingress-nginx chart layout. The validating webhook, ServiceMonitor, and PodDisruptionBudget are
 gated by chart values (with different defaults). The configurable surface (replicas, resources,
-exposure `mode`, images, webhook and cert-manager settings) lives in
+exposure `service`, images, webhook and cert-manager settings) lives in
 [`chart/iris/values.yaml`](../chart/iris/values.yaml).
 
 Opportunistic STARTTLS on the public SMTP ports (25/587/465) is gated on `postfix.tls.enabled`.

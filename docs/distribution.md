@@ -43,7 +43,7 @@ Tags are derived by `docker/metadata-action`.
 
 - `crds/`: generated CRDs (kept in sync by `make manifests`, and CI enforces this).
 - `templates/`: the controller, Postfix tier, validating webhook, and monitoring resources.
-- `values.yaml`: the configurable surface (replicas, resources, exposure `mode`, images, webhook
+- `values.yaml`: the configurable surface (replicas, resources, exposure `service`, images, webhook
   settings). See the file for the full set and defaults.
 
 Release flow:

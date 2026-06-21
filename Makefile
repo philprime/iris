@@ -21,6 +21,13 @@ ENVTEST_K8S_VERSION ?= 1.31.0
 # Local kind cluster name.
 KIND_CLUSTER ?= iris
 
+# kind cluster config used by the e2e suite. It maps the Postfix NodePorts to
+# host ports so the suite can reach the SMTP ingress through a real node port.
+KIND_CONFIG ?= test/e2e/kind.yaml
+
+# helm-unittest plugin used by `make chart-test`, pinned for reproducible runs.
+HELM_UNITTEST_VERSION ?= v1.1.1
+
 # Container image coordinates. Override IMAGE_REGISTRY / IMAGE_TAG to publish.
 IMAGE_REGISTRY ?= ghcr.io/philprime
 IMAGE_TAG ?= dev
@@ -68,6 +75,7 @@ init:
 	fi
 	$(MAKE) install
 	$(MAKE) setup-hooks
+	$(MAKE) setup-chart-tooling
 
 .PHONY: init-darwin
 init-darwin:
@@ -107,6 +115,24 @@ setup-hooks:
 		pre-commit install; \
 	else \
 		log_warning "pre-commit not found; skipping git hook install. Install it (macOS: 'brew bundle'; otherwise 'pipx install pre-commit') then run 'make setup-hooks'."; \
+	fi; \
+	end_group
+
+## Install the helm-unittest plugin used by `make chart-test`
+#
+# Idempotent: skips the install when the plugin is already present. Warns and
+# skips (rather than failing) when helm itself is not installed.
+.PHONY: setup-chart-tooling
+setup-chart-tooling:
+	@set -eu; $(LOG); \
+	begin_group "Setup chart tooling"; \
+	if ! command -v helm >/dev/null 2>&1; then \
+		log_warning "helm not found; skipping helm-unittest install. Install helm then run 'make setup-chart-tooling'."; \
+	elif helm plugin list 2>/dev/null | grep -q '^unittest'; then \
+		log_info "helm-unittest already installed."; \
+	else \
+		log_info "Installing helm-unittest $(HELM_UNITTEST_VERSION)..."; \
+		helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION); \
 	fi; \
 	end_group
 
@@ -346,7 +372,11 @@ test-e2e: build-docker build-docker-e2e-stub
 	@set -eu; $(LOG); \
 	begin_group "Provision kind cluster $(KIND_CLUSTER)"; \
 	if ! kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER)"; then \
-		kind create cluster --name $(KIND_CLUSTER); \
+		kind create cluster --name $(KIND_CLUSTER) --config $(KIND_CONFIG); \
+	elif ! docker port $(KIND_CLUSTER)-control-plane 30025 >/dev/null 2>&1; then \
+		log_warning "Existing kind cluster lacks the e2e node-port mappings; recreating it."; \
+		kind delete cluster --name $(KIND_CLUSTER); \
+		kind create cluster --name $(KIND_CLUSTER) --config $(KIND_CONFIG); \
 	fi; \
 	kind export kubeconfig --name $(KIND_CLUSTER); \
 	end_group; \
@@ -360,7 +390,11 @@ test-e2e: build-docker build-docker-e2e-stub
 		--set controller.replicas=1 --set postfix.replicas=1 \
 		--set controller.image.tag=$(IMAGE_TAG) --set controller.image.pullPolicy=IfNotPresent \
 		--set controller.relayImage.tag=$(IMAGE_TAG) \
-		--set postfix.image.tag=$(IMAGE_TAG) --set postfix.image.pullPolicy=IfNotPresent; \
+		--set postfix.image.tag=$(IMAGE_TAG) --set postfix.image.pullPolicy=IfNotPresent \
+		--set exposure.service.type=NodePort \
+		--set exposure.service.nodePorts.smtp=30025 \
+		--set exposure.service.nodePorts.submission=30587 \
+		--set exposure.service.nodePorts.smtps=30465; \
 	end_group; \
 	begin_group "Wait for control and data plane rollout"; \
 	kubectl -n $(E2E_NAMESPACE) rollout status deploy/$(E2E_FULLNAME)-controller --timeout=180s; \
@@ -476,6 +510,23 @@ chart-lint:
 	begin_group "helm lint"; \
 	helm lint chart/iris; \
 	end_group
+
+## Run the Helm chart unit tests (helm-unittest, chart/iris/tests/)
+#
+# Asserts the rendered manifests for the exposure modes and the Postfix TLS
+# certificate SANs. Requires the helm-unittest plugin (run 'make
+# setup-chart-tooling' or 'make init' once to install it).
+.PHONY: chart-test
+chart-test:
+	@set -eu; $(LOG); \
+	begin_group "helm unittest"; \
+	if ! helm plugin list 2>/dev/null | grep -q '^unittest'; then \
+		log_error "helm-unittest plugin not found. Run 'make setup-chart-tooling' first."; \
+		exit 1; \
+	fi; \
+	helm unittest chart/iris; \
+	end_group; \
+	log_notice "Chart unit tests passed."
 
 ## Render the Helm chart templates to stdout for inspection
 ## Optional: SET=key=value,key2=value2 to override values

@@ -44,8 +44,15 @@ metadata:
 spec:
   secretName: {{ include "iris.postfixTLSSecret" . }}
   dnsNames:
+    {{- if .Values.postfix.tls.certManager.issuerRef }}
+    {{- if not .Values.postfix.tls.dnsNames }}
+    {{- fail "postfix.tls.dnsNames must list the public MX hostname(s) when postfix.tls.certManager.issuerRef references an external (e.g. ACME) issuer, which cannot validate in-cluster .svc names." }}
+    {{- end }}
+    {{- else }}
+    {{- /* Self-signed issuer: the in-cluster Service name is sufficient for opportunistic STARTTLS. */}}
     - {{ include "iris.fullname" . }}-postfix.{{ .Release.Namespace }}.svc
     - {{ include "iris.fullname" . }}-postfix.{{ .Release.Namespace }}.svc.cluster.local
+    {{- end }}
     {{- range .Values.postfix.tls.dnsNames }}
     - {{ . | quote }}
     {{- end }}
@@ -136,7 +143,7 @@ spec:
           secret:
             secretName: {{ include "iris.postfixTLSSecret" . }}
         {{- end }}
-{{- if ne .Values.exposure.mode "none" }}
+{{- if .Values.exposure.service.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -151,9 +158,14 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  type: LoadBalancer
+  type: {{ .Values.exposure.service.type }}
+  {{- with .Values.exposure.service.clusterIP }}
+  clusterIP: {{ . | quote }}
+  {{- end }}
+  {{- if eq .Values.exposure.service.type "LoadBalancer" }}
   {{- with .Values.exposure.service.loadBalancerIP }}
   loadBalancerIP: {{ . }}
+  {{- end }}
   {{- end }}
   selector:
     {{- include "iris.postfix.selectorLabels" . | nindent 4 }}
@@ -162,12 +174,21 @@ spec:
       port: {{ .Values.exposure.ports.smtp }}
       targetPort: smtp
       protocol: TCP
+      {{- if and (eq .Values.exposure.service.type "NodePort") .Values.exposure.service.nodePorts.smtp }}
+      nodePort: {{ .Values.exposure.service.nodePorts.smtp }}
+      {{- end }}
     - name: submission
       port: {{ .Values.exposure.ports.submission }}
       targetPort: submission
       protocol: TCP
+      {{- if and (eq .Values.exposure.service.type "NodePort") .Values.exposure.service.nodePorts.submission }}
+      nodePort: {{ .Values.exposure.service.nodePorts.submission }}
+      {{- end }}
     - name: smtps
       port: {{ .Values.exposure.ports.smtps }}
       targetPort: smtps
       protocol: TCP
+      {{- if and (eq .Values.exposure.service.type "NodePort") .Values.exposure.service.nodePorts.smtps }}
+      nodePort: {{ .Values.exposure.service.nodePorts.smtps }}
+      {{- end }}
 {{- end }}
