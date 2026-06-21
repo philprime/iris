@@ -164,7 +164,7 @@ spec:
   {{- end }}
   {{- if eq .Values.exposure.service.type "LoadBalancer" }}
   {{- with .Values.exposure.service.loadBalancerIP }}
-  loadBalancerIP: {{ . }}
+  loadBalancerIP: {{ . | quote }}
   {{- end }}
   {{- end }}
   selector:
