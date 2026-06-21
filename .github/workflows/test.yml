@@ -48,7 +48,7 @@ jobs:
         with:
           install_only: true
 
-      - name: Create kind cluster
+      - name: Setup Helm
         uses: azure/setup-helm@v5
 
       - name: Install swaks
@@ -60,3 +60,22 @@ jobs:
       - name: Teardown kind
         if: always()
         run: make kind-down
+
+  chart:
+    name: Test Chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v5
+
+      - name: Install chart tooling
+        run: make setup-chart-tooling
+
+      - name: Lint chart
+        run: make chart-lint
+
+      - name: Run chart unit tests
+        run: make chart-test

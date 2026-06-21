@@ -55,17 +55,26 @@ The full delivery contract (idempotency, fan-out atomicity, `required` gating) i
 
 ## Public exposure
 
-Modeled as an exposure `mode`, defaulting to the portable option:
+Published through a Kubernetes Service in front of Postfix, configured by
+`exposure.service.type` (the standard Service type enum). Port 25 is raw TCP,
+which avoids HTTP-first ingress controllers entirely:
 
-- **`loadBalancer`** (default, v1).
-  A Service `type=LoadBalancer` on 25/587/465 in front of Postfix.
+- **`LoadBalancer`** (default, v1).
+  A Service `type=LoadBalancer` on 25/587/465.
   The cloud LB gives a stable public IP for MX records.
-  Port 25 is raw TCP, which avoids HTTP-first ingress controllers entirely.
-- **`traefik`** (documented, later phase).
-  Emit `IngressRouteTCP`.
-  Requires a dedicated Traefik **entrypoint** on port 25 in Traefik's _static_ config (cannot be injected by a CRD), which is the known friction point.
-- **`none`**.
-  Operators wire their own front Service.
+- **`NodePort`**.
+  Fixed node ports (pinned via `exposure.service.nodePorts`) for clusters
+  without cloud LoadBalancer integration, where an external load balancer
+  forwards the SMTP ports to the nodes (e.g. bare-metal or dedicated servers).
+- **`ClusterIP`**.
+  Cluster-internal only, for when external L4 infrastructure targets the
+  in-cluster Service.
+
+Setting `exposure.service.enabled=false` renders no Service so operators can
+wire their own. A `traefik` `IngressRouteTCP` exposure (a documented, later
+phase) would slot in as a sibling under `exposure`. It requires a dedicated
+Traefik **entrypoint** on port 25 in Traefik's _static_ config (cannot be
+injected by a CRD), which is the known friction point.
 
 TLS: opportunistic STARTTLS on inbound, with certificates via cert-manager.
 

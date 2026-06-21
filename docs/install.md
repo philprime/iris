@@ -14,9 +14,10 @@ versioning, and the release process, see [distribution.md](distribution.md).
   default, so the chart needs cert-manager present. To install without it, either disable the
   webhook's cert-manager integration (`webhook.certManager.enabled=false`) and supply the
   certificate yourself, or disable the webhook (`webhook.enabled=false`).
-- For the default `loadBalancer` exposure, a cluster that can provision `LoadBalancer` Services (a
+- For the default `LoadBalancer` exposure, a cluster that can provision `LoadBalancer` Services (a
   cloud provider, or MetalLB on bare metal). This is what gives Iris a stable public IP for your MX
-  records. If you front Postfix yourself, set `exposure.mode=none`.
+  records. On clusters without that, set `exposure.service.type=NodePort` and pin
+  `exposure.service.nodePorts`. If you front Postfix yourself, set `exposure.service.enabled=false`.
 - The Prometheus operator CRDs, only if you enable the `ServiceMonitor` (`metrics.serviceMonitor`),
   which is off by default.
 
@@ -54,8 +55,8 @@ The configurable surface lives in [`chart/iris/values.yaml`](../chart/iris/value
 documents every value and its default. The settings you are most likely to touch:
 
 - `controller.replicas` / `postfix.replicas`: availability and throughput of each tier.
-- `exposure.mode` and `exposure.service`: how the ingress is published, and a pinned
-  `loadBalancerIP` when your provider supports it.
+- `exposure.service`: how the ingress is published (the Service `type`, and a pinned
+  `loadBalancerIP` or `nodePorts` when applicable).
 - `postfix.tls`: opportunistic STARTTLS on the public listeners. Off by default, so Postfix serves
   plaintext until you enable it.
 - `webhook` and its `certManager` settings: how the validating webhook is served.
