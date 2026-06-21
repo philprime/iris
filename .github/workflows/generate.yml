@@ -1,4 +1,4 @@
-name: generate
+name: Generate
 
 on:
   push:
@@ -6,24 +6,40 @@ on:
   pull_request:
   workflow_dispatch:
 
-concurrency:
-  group: generate-${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   generate:
+    name: Generate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DPRINT_CACHE_DIR: /tmp/dprint-cache
+    container:
+      image: kula/golang-toolbox:trixie
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - name: Install dprint
-        run: |
-          curl -fsSL https://dprint.dev/install.sh | sh -s > /dev/null
-          echo "$HOME/.dprint/bin" >> "$GITHUB_PATH"
-      - name: make verify-generate
+          cache: true
+
+      - name: Cache dprint artifacts
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.DPRINT_CACHE_DIR }}
+          key: dprint-${{ hashFiles('dprint.json') }}
+          restore-keys: dprint-
+
+      - name: Verify Generate
         run: make verify-generate
