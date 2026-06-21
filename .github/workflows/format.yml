@@ -46,6 +46,8 @@ jobs:
 
       - name: Check for Formatting Changes
         run: |
+          git config --global --add safe.directory "$(pwd)"
+
           if [[ -n "$(git status --porcelain)" ]]; then
             echo "❌ Some code is not formatted correctly. Please run 'make format' and commit the changes."
             git status
