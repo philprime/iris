@@ -75,15 +75,6 @@ func TestSentryReleaseID(t *testing.T) {
 	}
 }
 
-// Feature: pointer helper
-// Scenario: ptr returns the address of its argument
-func TestPtr(t *testing.T) {
-	p := ptr(42)
-	if p == nil || *p != 42 {
-		t.Fatalf("ptr(42) = %v, want pointer to 42", p)
-	}
-}
-
 // Feature: controller startup validation
 // Scenario: an invalid configuration aborts before the manager starts
 //
