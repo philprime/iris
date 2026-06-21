@@ -42,4 +42,6 @@ jobs:
           restore-keys: dprint-
 
       - name: Verify Generate
-        run: make verify-generate
+        run: |
+          git config --global --add safe.directory "$(pwd)"
+          make verify-generate
