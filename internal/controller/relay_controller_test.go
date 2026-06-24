@@ -166,6 +166,62 @@ func TestRelayReconcileMountsSecretsAndTransforms(t *testing.T) {
 	}
 }
 
+// Feature: per-relay child reconciliation
+// Scenario: the transformer pod is hardened to the restricted Pod Security standard
+//
+//	Given a Relay
+//	When  the RelayReconciler reconciles it
+//	Then  the generated pod and container carry a restricted-compliant
+//	      securityContext that still permits binding the privileged SMTP port
+func TestRelayReconcileSetsRestrictedSecurityContext(t *testing.T) {
+	scheme := testScheme(t)
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	rel := relayClaiming("alpha", base, v1alpha1.Route{Domain: "invite.example.com"})
+	r, c := newRelayReconciler(scheme, rel)
+
+	if _, err := r.Reconcile(context.Background(), requestFor(rel)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	var dep appsv1.Deployment
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "default", Name: "relay-alpha"}, &dep); err != nil {
+		t.Fatalf("get deployment: %v", err)
+	}
+	pod := dep.Spec.Template.Spec
+
+	if pod.SecurityContext == nil {
+		t.Fatalf("pod securityContext not set")
+	}
+	if pod.SecurityContext.RunAsNonRoot == nil || !*pod.SecurityContext.RunAsNonRoot {
+		t.Errorf("pod runAsNonRoot = %v, want true", pod.SecurityContext.RunAsNonRoot)
+	}
+	if sp := pod.SecurityContext.SeccompProfile; sp == nil || sp.Type != corev1.SeccompProfileTypeRuntimeDefault {
+		t.Errorf("pod seccompProfile = %v, want RuntimeDefault", pod.SecurityContext.SeccompProfile)
+	}
+
+	sc := pod.Containers[0].SecurityContext
+	if sc == nil {
+		t.Fatalf("container securityContext not set")
+	}
+	if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+		t.Errorf("container allowPrivilegeEscalation = %v, want false", sc.AllowPrivilegeEscalation)
+	}
+	if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+		t.Errorf("container runAsNonRoot = %v, want true", sc.RunAsNonRoot)
+	}
+	if sc.Capabilities == nil {
+		t.Fatalf("container capabilities not set")
+	}
+	if !hasCapability(sc.Capabilities.Drop, "ALL") {
+		t.Errorf("container capabilities.drop = %v, want to include ALL", sc.Capabilities.Drop)
+	}
+	// The relay binds the privileged SMTP port (:25), so the one capability the
+	// restricted standard permits adding back, NET_BIND_SERVICE, must be present.
+	if !hasCapability(sc.Capabilities.Add, "NET_BIND_SERVICE") {
+		t.Errorf("container capabilities.add = %v, want to include NET_BIND_SERVICE", sc.Capabilities.Add)
+	}
+}
+
 // Feature: deployment availability
 // Scenario: availability is read from the Available condition, then replicas
 //
@@ -299,6 +355,15 @@ func mountPath(mounts []corev1.VolumeMount, volumeName string) string {
 		}
 	}
 	return ""
+}
+
+func hasCapability(caps []corev1.Capability, want corev1.Capability) bool {
+	for _, c := range caps {
+		if c == want {
+			return true
+		}
+	}
+	return false
 }
 
 func envValue(env []corev1.EnvVar, name string) string {

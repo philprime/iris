@@ -29,6 +29,7 @@ The data plane is replicated for throughput.
    One Deployment+Service per `Relay`.
    Receives SMTP from Postfix, applies filters, transforms, and delivers.
    Configured entirely from a mounted file + mounted Secrets, and **needs no Kubernetes API access**.
+   The generated pod runs under a `restricted` Pod Security compliant `securityContext` so relays are admitted in namespaces that enforce it, keeping only `NET_BIND_SERVICE` so the relay can still bind its privileged SMTP port.
    Internals in [relay.md](relay.md).
 
 5. **Helm chart**.
