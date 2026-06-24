@@ -36,6 +36,11 @@ RELAY_IMG ?= $(IMAGE_REGISTRY)/iris-relay:$(IMAGE_TAG)
 POSTFIX_IMG ?= $(IMAGE_REGISTRY)/iris-postfix:$(IMAGE_TAG)
 E2E_STUB_IMG ?= $(IMAGE_REGISTRY)/iris-e2e-stub:$(IMAGE_TAG)
 
+# Chart and app version stamped into the packaged chart. On a tagged commit this
+# is the tag without the leading "v" (v0.2.1 -> 0.2.1). Untagged checkouts fall
+# back to a dev version. The publish workflow passes the release tag explicitly.
+CHART_VERSION ?= $(shell v=$$(git describe --tags --match 'v*' --exact-match 2>/dev/null | sed 's/^v//'); echo "$${v:-0.0.0-dev}")
+
 # End-to-end deployment coordinates. E2E_FULLNAME is the chart fullname for the
 # release (<release>-<chart name>), which prefixes the rendered resource names.
 E2E_RELEASE ?= iris
@@ -549,9 +554,9 @@ chart-template:
 .PHONY: chart-package
 chart-package:
 	@set -eu; $(LOG); \
-	begin_group "helm package"; \
+	begin_group "helm package $(CHART_VERSION)"; \
 	mkdir -p dist; \
-	helm package chart/iris --destination dist; \
+	helm package chart/iris --destination dist --version $(CHART_VERSION) --app-version $(CHART_VERSION); \
 	end_group
 
 # ============================================================================

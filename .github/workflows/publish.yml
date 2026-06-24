@@ -92,7 +92,7 @@ jobs:
         run: helm registry login ghcr.io -u ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package chart
-        run: make chart-package
+        run: make chart-package CHART_VERSION="${GITHUB_REF_NAME#v}"
 
       - name: Push chart
         run: helm push dist/iris-*.tgz oci://ghcr.io/philprime/charts
