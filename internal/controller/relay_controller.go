@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -206,6 +207,7 @@ func (r *RelayReconciler) reconcileDeployment(ctx context.Context, rel *v1alpha1
 		dep.Spec.Template.ObjectMeta.Labels = labels
 		volumes, mounts := relayVolumes(rel)
 		dep.Spec.Template.Spec = corev1.PodSpec{
+			SecurityContext: relayPodSecurityContext(),
 			Containers: []corev1.Container{{
 				Name:  "relay",
 				Image: r.RelayImage,
@@ -217,8 +219,9 @@ func (r *RelayReconciler) reconcileDeployment(ctx context.Context, rel *v1alpha1
 					{Name: "IRIS_RELAY_CONFIG", Value: relayMountDir + "/config/" + relay.ConfigFileName},
 					{Name: "IRIS_RELAY_MOUNT_DIR", Value: relayMountDir},
 				},
-				Resources:    relayResources(rel),
-				VolumeMounts: mounts,
+				Resources:       relayResources(rel),
+				VolumeMounts:    mounts,
+				SecurityContext: relayContainerSecurityContext(),
 			}},
 			Volumes: volumes,
 		}
@@ -411,6 +414,31 @@ func relayResources(rel *v1alpha1.Relay) corev1.ResourceRequirements {
 		return rel.Spec.Deployment.Resources
 	}
 	return corev1.ResourceRequirements{}
+}
+
+// relayPodSecurityContext returns the pod-level securityContext for the
+// transformer pod. It satisfies the restricted Pod Security standard so the
+// pod is admitted in namespaces that enforce it.
+func relayPodSecurityContext() *corev1.PodSecurityContext {
+	return &corev1.PodSecurityContext{
+		RunAsNonRoot:   ptr.To(true),
+		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+	}
+}
+
+// relayContainerSecurityContext returns the container-level securityContext for
+// the relay container. It satisfies the restricted Pod Security standard while
+// keeping NET_BIND_SERVICE, the one capability that standard permits adding
+// back, so the relay can still bind its privileged SMTP port.
+func relayContainerSecurityContext() *corev1.SecurityContext {
+	return &corev1.SecurityContext{
+		RunAsNonRoot:             ptr.To(true),
+		AllowPrivilegeEscalation: ptr.To(false),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+			Add:  []corev1.Capability{"NET_BIND_SERVICE"},
+		},
+	}
 }
 
 func deploymentReason(available bool) string {
