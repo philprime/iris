@@ -16,10 +16,17 @@ src_dir="${IRIS_POSTFIX_MAPS_SRC_DIR:-/etc/postfix/maps-src}"
 maps_dir="${IRIS_POSTFIX_MAPS_DIR:-/etc/postfix/maps}"
 
 # Seed the writable work directory so the maps exist before boky compiles them.
+# The controller owns the ConfigMap data keys and may not have written them yet,
+# so when a source map is absent seed an empty file. boky runs postmap on every
+# referenced map at startup and that fails on a missing file, so the empty seed
+# is what lets Postfix boot before the controller's first write. The reloader
+# fills the maps in once the controller populates the ConfigMap.
 mkdir -p "$maps_dir"
 for name in transport relay_recipient_maps relay_domains; do
 	if [ -f "${src_dir}/${name}" ]; then
 		cp -fL "${src_dir}/${name}" "${maps_dir}/${name}"
+	else
+		: > "${maps_dir}/${name}"
 	fi
 done
 

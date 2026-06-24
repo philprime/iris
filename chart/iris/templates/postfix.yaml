@@ -1,6 +1,11 @@
 {{/*
-The Postfix maps ConfigMap is created empty and owned by the chart. The
-controller renders the routing maps into it from the Relay resources. The
+The Postfix maps ConfigMap is created empty and owned by the chart, but its
+data keys (transport, relay_domains, relay_recipient_maps) are deliberately
+NOT declared here. The controller renders those keys from the Relay resources
+and owns them. Declaring them in the chart would make any server-side-apply
+deployer (Pulumi, Argo CD, kubectl apply --server-side) claim ownership of the
+keys and conflict with the controller. The Postfix entrypoint seeds empty map
+files at startup so the ingress boots before the controller's first write. The
 helm.sh/resource-policy keep annotation stops Helm from deleting the
 controller-managed content on upgrade.
 */}}
@@ -14,10 +19,6 @@ metadata:
     app.kubernetes.io/component: postfix
   annotations:
     helm.sh/resource-policy: keep
-data:
-  transport: ""
-  relay_domains: ""
-  relay_recipient_maps: ""
 {{- if and .Values.postfix.tls.enabled .Values.postfix.tls.certManager.enabled }}
 {{- if not .Values.postfix.tls.certManager.issuerRef }}
 ---
