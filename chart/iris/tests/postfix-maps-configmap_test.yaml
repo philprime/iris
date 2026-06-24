@@ -1,0 +1,21 @@
+suite: postfix maps ConfigMap
+templates:
+  - templates/postfix.yaml
+release:
+  name: iris
+  namespace: iris-system
+tests:
+  - it: creates the maps ConfigMap without controller-owned data keys
+    documentSelector:
+      path: metadata.name
+      value: iris-iris-postfix-maps
+    asserts:
+      - isKind:
+          of: ConfigMap
+      # The controller owns the rendered map keys. Declaring them here would make
+      # server-side-apply deployers fight the controller for ownership.
+      - notExists:
+          path: data
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
