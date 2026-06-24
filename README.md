@@ -16,28 +16,53 @@ queueing, retry/backoff, bounces). The **Iris controller** watches `Relay` resou
 into Postfix routing maps, and reconciles one stateless **relay pod** per `Relay` that does the
 filtering, transforming, and fan-out.
 
+An example deployment: one shared ingress and controller live in `iris-system`, while each
+team owns a `Relay` and its destinations in their own namespace. The controller watches
+`Relay` resources cluster-wide, compiles them into the Postfix routing maps, and reconciles a
+relay pod per `Relay` next to the `Relay` it serves.
+
 ```mermaid
 flowchart TB
-    internet["Public Internet"]
-    ingress["Postfix Ingress<br/>N replicas · LoadBalancer Service<br/>in-container reloader mounts ConfigMap,<br/>routes per recipient via transport maps"]
-    relay["Relay Pod<br/>1 Deployment + Service per Relay CR"]
-    rest["REST API"]
-    smtpep["SMTP endpoint"]
-    controller["Iris Controller<br/>leader-elected, HA"]
-    configmap[("Postfix maps ConfigMap")]
-    relaycr[/"Relay CRs"/]
+    senders["Public Internet<br/>Gmail, partners, providers"]
 
-    internet -->|"MX → public IP · :25/587/465"| ingress
-    ingress -->|"smtp: to Service DNS"| relay
-    relay -->|"HTTP POST"| rest
-    relay -->|"smtp:"| smtpep
-    controller -->|"watches"| relaycr
-    controller -->|"renders Postfix maps"| configmap
-    configmap -.->|"mounted, inotify reload"| ingress
-    relaycr -.->|"reconciled into"| relay
+    subgraph cluster["Kubernetes cluster"]
+        subgraph irissys["namespace: iris-system"]
+            lb(["Service type=LoadBalancer<br/>:25 / :587 / :465"])
+            postfix["Postfix ingress<br/>Deployment, 3 replicas"]
+            controller["Iris controller<br/>Deployment, 2 replicas, leader-elected"]
+            maps[("Postfix maps<br/>ConfigMap")]
+        end
+
+        subgraph support["namespace: support"]
+            relayS[/"Relay<br/>inbound.support.example"/]
+            podS["relay pod<br/>Deployment + Service"]
+            apiS(["helpdesk-api<br/>Service :3000"])
+        end
+
+        subgraph billing["namespace: billing"]
+            relayB[/"Relay<br/>receipts.acme.example"/]
+            podB["relay pod<br/>Deployment + Service"]
+            mtaB(["legacy MTA<br/>Service :25"])
+        end
+    end
+
+    senders -->|"MX → public IP"| lb --> postfix
+
+    postfix -->|"smtp: → Service DNS"| podS
+    postfix -->|"smtp: → Service DNS"| podB
+    podS -->|"HTTP POST, JSON envelope"| apiS
+    podB -->|"smtp:"| mtaB
+
+    controller -. "watches Relays<br/>(all namespaces)" .-> relayS
+    controller -. watches .-> relayB
+    controller -->|"renders routing maps"| maps
+    maps -. "mounted, inotify reload" .-> postfix
+    relayS -. "reconciled into" .-> podS
+    relayB -. "reconciled into" .-> podB
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the full design.
+See [docs/architecture.md](docs/architecture.md) for the full design, including a component
+overview diagram.
 
 ## Why Iris?
 

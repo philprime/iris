@@ -4,6 +4,31 @@ Iris is split into a **control plane** (the Iris controller) and a **data plane*
 The control plane is replicated for availability.
 The data plane is replicated for throughput.
 
+## Overview
+
+At a glance, Iris is one shared ingress and controller driving a relay pod per `Relay`:
+
+```mermaid
+flowchart TB
+    internet["Public Internet"]
+    ingress["Postfix Ingress<br/>N replicas · LoadBalancer Service<br/>in-container reloader mounts ConfigMap,<br/>routes per recipient via transport maps"]
+    relay["Relay Pod<br/>1 Deployment + Service per Relay CR"]
+    rest["REST API"]
+    smtpep["SMTP endpoint"]
+    controller["Iris Controller<br/>leader-elected, HA"]
+    configmap[("Postfix maps ConfigMap")]
+    relaycr[/"Relay CRs"/]
+
+    internet -->|"MX → public IP · :25/587/465"| ingress
+    ingress -->|"smtp: to Service DNS"| relay
+    relay -->|"HTTP POST"| rest
+    relay -->|"smtp:"| smtpep
+    controller -->|"watches"| relaycr
+    controller -->|"renders Postfix maps"| configmap
+    configmap -.->|"mounted, inotify reload"| ingress
+    relaycr -.->|"reconciled into"| relay
+```
+
 ## Components
 
 1. **Iris controller (control plane)**.
