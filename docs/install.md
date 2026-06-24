@@ -62,6 +62,9 @@ documents every value and its default. The settings you are most likely to touch
 - `postfix.proxyProtocol`: read the PROXY protocol header so the real client IP survives an upstream
   L4 load balancer. Enable it when the listeners sit behind a PROXY-protocol load balancer (commonly
   with `exposure.service.type=NodePort`); leave it off for direct connections.
+- `postfix.config`: extra Postfix `main.cf` parameters passed through to the ingress. The defaults
+  keep the ingress open as a public inbound MX. Extend them to layer your own anti-abuse policy
+  (postscreen, DNSBL, HELO restrictions) or tune other Postfix settings.
 - `webhook` and its `certManager` settings: how the validating webhook is served.
 - `metrics.serviceMonitor`: scraping by the Prometheus operator.
 - `sentry`: opt-in error reporting on every component.

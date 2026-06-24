@@ -40,6 +40,23 @@ postfix:
     limits:
       cpu: 500m
       memory: 256Mi
+  # config passes extra Postfix main.cf parameters straight through to the
+  # underlying image as POSTFIX_<name> environment variables. The image applies
+  # them after its own defaults, so this can override or extend any setting
+  # without rebuilding the image (anti-abuse policy, size limits, timeouts).
+  #
+  # The defaults below make Iris usable as a public inbound MX. The base image
+  # ships SMTP restrictions that end in a terminal "reject", which turns away
+  # every external, unauthenticated client and sender before the route is
+  # consulted. That is wrong for an inbound MX: Iris gates recipients with the
+  # controller-compiled relay_domains and relay_recipient_maps (plus
+  # smtpd_relay_restrictions' defer_unauth_destination) and filters senders in
+  # the relay data plane, so the ingress should accept public mail and let the
+  # route decide. Extend these to layer your own anti-abuse checks (postscreen,
+  # DNSBL, HELO restrictions), or add other POSTFIX_<name> parameters as needed.
+  config:
+    smtpd_client_restrictions: permit_sasl_authenticated,permit_mynetworks,permit
+    smtpd_sender_restrictions: permit_sasl_authenticated,permit_mynetworks,permit
   # proxyProtocol makes Postfix read the PROXY protocol header from the
   # connection so the real client IP is recovered when an upstream L4 load
   # balancer fronts the SMTP listeners. Enable it only when every published
