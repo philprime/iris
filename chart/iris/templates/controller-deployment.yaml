@@ -23,10 +23,18 @@ spec:
       {{- end }}
       securityContext:
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: controller
           image: {{ include "iris.controller.image" . }}
           imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           env:
             - name: IRIS_CONTROLLER_METRICS_ADDR
               value: ":8080"
