@@ -1,0 +1,54 @@
+suite: postfix config passthrough
+templates:
+  - templates/postfix.yaml
+release:
+  name: iris
+  namespace: iris-system
+tests:
+  - it: passes the inbound-MX restriction defaults through as POSTFIX_ env
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTFIX_smtpd_client_restrictions
+            value: permit_sasl_authenticated,permit_mynetworks,permit
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTFIX_smtpd_sender_restrictions
+            value: permit_sasl_authenticated,permit_mynetworks,permit
+
+  - it: renders a custom config entry as a POSTFIX_ env var
+    set:
+      postfix.config:
+        message_size_limit: "10485760"
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTFIX_message_size_limit
+            value: "10485760"
+
+  - it: lets an operator override a restriction default
+    set:
+      postfix.config.smtpd_client_restrictions: permit_mynetworks,reject_unknown_client_hostname,permit
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTFIX_smtpd_client_restrictions
+            value: permit_mynetworks,reject_unknown_client_hostname,permit
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTFIX_smtpd_client_restrictions
+            value: permit_sasl_authenticated,permit_mynetworks,permit

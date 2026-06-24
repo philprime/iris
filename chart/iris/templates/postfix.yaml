@@ -111,6 +111,11 @@ spec:
             - name: IRIS_POSTFIX_PROXY_PROTOCOL
               value: haproxy
             {{- end }}
+            {{- /* Pass postfix.config through as POSTFIX_<name> so the image applies it after its own defaults. */}}
+            {{- range $key, $value := .Values.postfix.config }}
+            - name: POSTFIX_{{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
             {{- include "iris.sentryEnv" . | nindent 12 }}
           ports:
             - name: smtp
