@@ -55,8 +55,7 @@ func Setup(ctx context.Context, cfg config.Sentry, terminal slog.Handler) (*slog
 	}
 
 	sentryHandler := sentryslog.Option{
-		EventLevel: []slog.Level{slog.LevelError},
-		LogLevel:   []slog.Level{slog.LevelWarn, slog.LevelInfo},
+		LogLevel: []slog.Level{slog.LevelError, slog.LevelWarn, slog.LevelInfo},
 	}.NewSentryHandler(ctx)
 
 	logger := slog.New(logging.NewMultiHandler(sentryHandler, terminal))
