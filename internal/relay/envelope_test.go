@@ -76,6 +76,60 @@ func TestBuildEnvelopeFromMultipart(t *testing.T) {
 }
 
 // Feature: canonical envelope
+// Scenario: a single-part body in a legacy charset is decoded
+//
+//	Given a text message encoded as ISO-8859-1
+//	When  the envelope is built
+//	Then  the text body is converted to UTF-8
+func TestBuildEnvelopeDecodesSinglePartCharset(t *testing.T) {
+	msg := "From: sender@example.com\r\n" +
+		"To: recipient@example.com\r\n" +
+		"Subject: charset\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: text/plain; charset=iso-8859-1\r\n" +
+		"Content-Transfer-Encoding: quoted-printable\r\n" +
+		"\r\n" +
+		"Caf=E9 SV=D6\r\n"
+
+	env, err := BuildEnvelope("sender@example.com", []string{"recipient@example.com"}, []byte(msg), "charset-single")
+	if err != nil {
+		t.Fatalf("build envelope: %v", err)
+	}
+	if !strings.Contains(env.Text, "Café SVÖ") {
+		t.Errorf("text = %q, want decoded ISO-8859-1 text", env.Text)
+	}
+}
+
+// Feature: canonical envelope
+// Scenario: a multipart body in a legacy charset is decoded
+//
+//	Given a multipart message with an ISO-8859-1 text part
+//	When  the envelope is built
+//	Then  the text body is converted to UTF-8
+func TestBuildEnvelopeDecodesMultipartCharset(t *testing.T) {
+	msg := "From: sender@example.com\r\n" +
+		"To: recipient@example.com\r\n" +
+		"Subject: charset\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/alternative; boundary=BOUND\r\n" +
+		"\r\n" +
+		"--BOUND\r\n" +
+		"Content-Type: text/plain; charset=iso-8859-1\r\n" +
+		"Content-Transfer-Encoding: quoted-printable\r\n" +
+		"\r\n" +
+		"Caf=E9 SV=D6\r\n" +
+		"--BOUND--\r\n"
+
+	env, err := BuildEnvelope("sender@example.com", []string{"recipient@example.com"}, []byte(msg), "charset-multipart")
+	if err != nil {
+		t.Fatalf("build envelope: %v", err)
+	}
+	if !strings.Contains(env.Text, "Café SVÖ") {
+		t.Errorf("text = %q, want decoded ISO-8859-1 text", env.Text)
+	}
+}
+
+// Feature: canonical envelope
 // Scenario: an attachment is captured as base64
 //
 //	Given a message with a text body and a file attachment
