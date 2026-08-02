@@ -156,8 +156,9 @@ so enabling tracing later never floods the quota with health traffic.
 ### Wiring
 
 Sentry is initialized as early as possible in `run()`, only when enabled, then bridged into `slog`
-and flushed on shutdown. The Sentry slog handler maps `ERROR` records to Sentry issues and
-`WARN`/`INFO` records to Sentry logs. The `TracesSampler` (which drops probe and metrics spans) and
+and flushed on shutdown. The Sentry slog handler forwards `ERROR`, `WARN`, and `INFO` records as
+Sentry logs. Unexpected errors are reported as Sentry issues through `CaptureError`, which uses
+`sentry.CaptureException`. The `TracesSampler` (which drops probe and metrics spans) and
 `BeforeSend` (which drops expected or noisy events) are wired at init time.
 
 The `MultiHandler` (copied from the philprime house `internal/logging`) sends every record to both the
