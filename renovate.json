@@ -1,36 +1,38 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "automerge": true,
   "extends": [
     "config:recommended"
   ],
   "keepUpdatedLabel": "renovate:keep-updated",
   "lockFileMaintenance": {
     "automerge": false,
-    "enabled": true,
-    "extends": [
-      "schedule:weekly"
-    ]
+    "enabled": true
   },
   "minimumReleaseAge": "7 days",
+  "osvVulnerabilityAlerts": true,
   "packageRules": [
     {
       "automerge": false,
+      "dependencyDashboardApproval": true,
+      "description": "Require dashboard approval for minor and major updates",
       "matchUpdateTypes": [
-        "major"
+        "major",
+        "minor"
+      ]
+    },
+    {
+      "automerge": false,
+      "description": "Group patch updates into one weekly PR",
+      "groupName": "weekly patch updates",
+      "matchUpdateTypes": [
+        "patch"
       ]
     },
     {
       "description": "Keep Go version in go.mod up to date automatically",
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchDepNames": [
-        "go"
-      ],
-      "matchDepTypes": [
-        "golang"
-      ],
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "matchDepTypes": ["golang"],
       "minimumReleaseAge": "0 days",
       "prPriority": 10,
       "rangeStrategy": "bump",
@@ -39,27 +41,27 @@
     {
       "description": "Group Go toolchain updates (golang Docker image + go directive in go.mod) into a single PR",
       "groupName": "go toolchain",
-      "matchDatasources": [
-        "docker",
-        "golang-version"
-      ],
-      "matchDepNames": [
-        "go",
-        "golang"
-      ],
+      "matchDatasources": ["docker", "golang-version"],
+      "matchDepNames": ["go", "golang"],
       "minimumReleaseAge": "0 days",
       "prPriority": 10,
       "automerge": true
     },
     {
+      "description": "Group getsentry/sentry-go module and submodules into a single PR",
+      "groupName": "sentry-go",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": [
+        "github.com/getsentry/sentry-go",
+        "github.com/getsentry/sentry-go/**"
+      ],
+      "automerge": true
+    },
+    {
       "description": "Group the boky/postfix ingress image updates",
       "groupName": "postfix ingress",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "boky/postfix"
-      ]
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["boky/postfix"]
     }
   ],
   "postUpdateOptions": [
@@ -71,8 +73,12 @@
   },
   "rebaseLabel": "renovate:rebase",
   "schedule": [
-    "* 1-4 * * 0,1,6"
+    "* 1-4 * * 1"
   ],
   "stopUpdatingLabel": "renovate:disabled",
-  "timezone": "Europe/Vienna"
+  "timezone": "Europe/Vienna",
+  "vulnerabilityAlerts": {
+    "dependencyDashboardApproval": false,
+    "enabled": true
+  }
 }
