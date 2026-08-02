@@ -1,6 +1,6 @@
 module github.com/philprime/iris
 
-go 1.26.4
+go 1.26.5
 
 tool (
 	github.com/air-verse/air
