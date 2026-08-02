@@ -52,9 +52,14 @@ postfix:
   # controller-compiled relay_domains and relay_recipient_maps (plus
   # smtpd_relay_restrictions' defer_unauth_destination) and filters senders in
   # the relay data plane, so the ingress should accept public mail and let the
-  # route decide. Extend these to layer your own anti-abuse checks (postscreen,
-  # DNSBL, HELO restrictions), or add other POSTFIX_<name> parameters as needed.
+  # route decide. The routing settings also belong here because the base image
+  # clears relay_domains during startup before applying POSTFIX_<name> values.
+  # Extend these to layer your own anti-abuse checks (postscreen, DNSBL, HELO
+  # restrictions), or add other POSTFIX_<name> parameters as needed.
   config:
+    transport_maps: lmdb:/etc/postfix/maps/transport
+    relay_recipient_maps: lmdb:/etc/postfix/maps/relay_recipient_maps
+    relay_domains: /etc/postfix/maps/relay_domains
     smtpd_client_restrictions: permit_sasl_authenticated,permit_mynetworks,permit
     smtpd_sender_restrictions: permit_sasl_authenticated,permit_mynetworks,permit
   # proxyProtocol makes Postfix read the PROXY protocol header from the

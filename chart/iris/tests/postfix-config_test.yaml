@@ -21,6 +21,27 @@ tests:
             name: POSTFIX_smtpd_sender_restrictions
             value: permit_sasl_authenticated,permit_mynetworks,permit
 
+  - it: applies controller-managed routing maps after the base image defaults
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTFIX_transport_maps
+            value: lmdb:/etc/postfix/maps/transport
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTFIX_relay_recipient_maps
+            value: lmdb:/etc/postfix/maps/relay_recipient_maps
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTFIX_relay_domains
+            value: /etc/postfix/maps/relay_domains
+
   - it: renders a custom config entry as a POSTFIX_ env var
     set:
       postfix.config:
