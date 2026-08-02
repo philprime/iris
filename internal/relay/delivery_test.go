@@ -97,16 +97,26 @@ func TestFanOutDeliversConcurrently(t *testing.T) {
 		{Name: "a", HTTP: &HTTPTarget{URL: a.URL, Format: v1alpha1.PayloadFormatJSON, Client: a.Client()}},
 		{Name: "b", HTTP: &HTTPTarget{URL: b.URL, Format: v1alpha1.PayloadFormatJSON, Client: b.Client()}},
 	}
-	go FanOut(context.Background(), targets, sampleEnvelope(), []byte("RAW"))
+	finished := make(chan struct{})
+	go func() {
+		FanOut(context.Background(), targets, sampleEnvelope(), []byte("RAW"))
+		close(finished)
+	}()
 
 	both := make(chan struct{})
 	go func() { arrived.Wait(); close(both) }()
 	select {
 	case <-both:
 	case <-time.After(2 * time.Second):
+		close(release)
 		t.Fatal("destinations were not delivered concurrently")
 	}
 	close(release)
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("fan-out did not finish after destinations were released")
+	}
 }
 
 // Feature: fan-out delivery contract
