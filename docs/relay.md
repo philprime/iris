@@ -69,6 +69,9 @@ documented, versioned schema:
 }
 ```
 
+Textual MIME bodies are decoded from supported declared charsets into UTF-8 for the canonical
+`text` and `html` fields. Raw delivery preserves the original RFC822 message.
+
 ## Delivery
 
 - **HTTP**, a POST (or configured method) with a timeout, the `Idempotency-Key` header, and

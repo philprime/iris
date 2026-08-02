@@ -15,6 +15,7 @@ import (
 	"io"
 	"strings"
 
+	_ "github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 )
 
